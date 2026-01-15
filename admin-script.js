@@ -1,58 +1,75 @@
-/* === بيانات الدخول والتهيئة === */
+/* =========================================
+   Admin Panel - Connected to Real Database
+   ========================================= */
+
+// 1. استيراد دوال فايربيس
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// 2. إعدادات المشروع (نفس الموجودة في تطبيق المستخدم)
+const firebaseConfig = {
+    apiKey: "AIzaSyAFzCkQI0jedUl8W9xO1Bwzdg2Rhnxsh-s",
+    authDomain: "kj1i-c1d4d.firebaseapp.com",
+    projectId: "kj1i-c1d4d",
+    storageBucket: "kj1i-c1d4d.firebasestorage.app",
+    messagingSenderId: "674856242986",
+    appId: "1:674856242986:web:77642057ca6ec2036c5853",
+    measurementId: "G-J9QPH9Z1K1"
+};
+
+// تهيئة الاتصال
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// بيانات دخول الأدمن
 const ADMIN_AUTH = {
     email: "saraameer1022@gmail.com",
     pass: "1998b"
 };
 
-// بيانات وهمية للتجربة (في الواقع يتم جلبها من فايربيس)
-let mockUsers = [
-    { id: "KEY8821", name: "علي محمد", balance: 150000, status: "active" },
-    { id: "KEY9934", name: "سارة أحمد", balance: 5000, status: "banned" }
-];
+// متغيرات عامة
+let currentUser = null; // لتخزين المستخدم الحالي عند البحث
+let notes = JSON.parse(localStorage.getItem('adminNotes')) || []; // الملاحظات تبقى محلية حالياً
 
-let mockWithdrawals = [
-    { id: 1, userId: "KEY8821", name: "علي محمد", amount: 50000, wallet: "07701234567 (ZainCash)" },
-    { id: 2, userId: "KEY1002", name: "حسين علي", amount: 25000, wallet: "07809876543 (AsiaPay)" }
-];
+/* === دوال النظام الأساسية === */
 
-let plans = JSON.parse(localStorage.getItem('adminPlans')) || [];
-let notes = JSON.parse(localStorage.getItem('adminNotes')) || [];
-
-/* === 1. تسجيل الدخول === */
-function adminLogin() {
+// تسجيل الدخول
+window.adminLogin = function() {
     const email = document.getElementById('adminEmail').value;
     const pass = document.getElementById('adminPass').value;
 
     if (email === ADMIN_AUTH.email && pass === ADMIN_AUTH.pass) {
         document.getElementById('adminLoginModal').style.display = 'none';
         document.getElementById('adminPanel').style.display = 'flex';
-        renderPlans();
+        renderPlans(); // جلب الخطط فور الدخول
         renderNotes();
-        renderWithdrawals();
     } else {
         document.getElementById('loginError').style.display = 'block';
     }
 }
 
-function adminLogout() {
+window.adminLogout = function() {
     location.reload();
 }
 
-function showTab(tabId) {
+// التنقل بين التبويبات
+window.showTab = function(tabId) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
     document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
     
     document.getElementById(tabId).classList.add('active');
-    event.currentTarget.classList.add('active');
+    // إضافة كلاس active للزر (تحتاج تحسين بسيط في HTML لكن هذا يؤدي الغرض)
 }
 
-/* === 2. إدارة العدادات (Tab 1) === */
-function toggleAddForm() {
+/* === 1. إدارة العدادات (Database Plans) === */
+
+window.toggleAddForm = function() {
     const form = document.getElementById('addPlanForm');
     form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
-function addNewPlan() {
+// إضافة خطة جديدة لقاعدة البيانات
+window.addNewPlan = async function() {
     const name = document.getElementById('pName').value;
     const price = document.getElementById('pPrice').value;
     const profit = document.getElementById('pProfit').value;
@@ -60,96 +77,163 @@ function addNewPlan() {
 
     if (!name || !price || !stock) return alert('يرجى ملء كافة الحقول');
 
+    // إنشاء كائن البيانات
     const newPlan = {
-        id: Date.now(),
-        name, price, profit, stock, sold: 0
+        name: name,
+        price: Number(price),
+        profit: Number(profit),
+        stock: Number(stock),
+        sold: 0,
+        createdAt: Date.now() // للترتيب
     };
 
-    plans.push(newPlan);
-    localStorage.setItem('adminPlans', JSON.stringify(plans));
-    renderPlans();
-    toggleAddForm();
-    alert('تم إضافة العداد بنجاح');
-}
-
-function renderPlans() {
-    const list = document.getElementById('adminPlansList');
-    list.innerHTML = '';
-    
-    plans.forEach((plan, index) => {
-        let isFull = plan.sold >= plan.stock;
-        let statusHtml = isFull ? '<span style="color:red; font-weight:bold;">(محجوز بالكامل)</span>' : '';
+    try {
+        // نستخدم الوقت الحالي كـ ID لضمان عدم التكرار
+        const planId = "PLAN_" + Date.now();
+        await setDoc(doc(db, "plans", planId), newPlan);
         
-        list.innerHTML += `
-            <div class="plan-item" style="${isFull ? 'opacity:0.6; background:#f0f0f0;' : ''}">
-                <div>
-                    <strong>${plan.name}</strong> ${statusHtml} <br>
-                    <small>السعر: ${plan.price} | الربح: ${plan.profit} | العدد: ${plan.sold}/${plan.stock}</small>
-                </div>
-                <button onclick="deletePlan(${index})" class="btn-del">حذف</button>
-            </div>
-        `;
-    });
-}
-
-function deletePlan(index) {
-    if(confirm('هل أنت متأكد من حذف هذا العداد؟')) {
-        plans.splice(index, 1);
-        localStorage.setItem('adminPlans', JSON.stringify(plans));
+        alert('تم نشر العداد في التطبيق بنجاح ✅');
         renderPlans();
-    }
-}
-
-/* === 3. المستثمرين (Tab 2) === */
-let currentUser = null;
-
-function searchUser() {
-    const id = document.getElementById('searchId').value;
-    // بحث وهمي في المصفوفة (في الحقيقة يتم البحث في فايربيس)
-    const user = mockUsers.find(u => u.id === id);
-
-    if (user) {
-        currentUser = user;
-        document.getElementById('userResult').style.display = 'block';
-        document.getElementById('uName').innerText = user.name;
-        document.getElementById('uID').innerText = user.id;
-        document.getElementById('uBalance').value = user.balance;
+        toggleAddForm();
         
-        const badge = document.getElementById('uStatus');
-        badge.innerText = user.status === 'active' ? 'نشط' : 'محظور';
-        badge.style.color = user.status === 'active' ? 'green' : 'red';
-    } else {
-        alert('مستخدم غير موجود');
-        document.getElementById('userResult').style.display = 'none';
+        // تفريغ الحقول
+        document.getElementById('pName').value = '';
+        document.getElementById('pPrice').value = '';
+    } catch (e) {
+        console.error("Error adding plan: ", e);
+        alert("حدث خطأ أثناء الاتصال بقاعدة البيانات ❌");
     }
 }
 
-function updateBalance(direction) {
-    let val = parseInt(document.getElementById('uBalance').value);
+// جلب وعرض الخطط من قاعدة البيانات
+window.renderPlans = async function() {
+    const list = document.getElementById('adminPlansList');
+    list.innerHTML = '<p style="text-align:center">جاري جلب البيانات من السيرفر...</p>';
+    
+    try {
+        const q = query(collection(db, "plans")); // يمكن إضافة orderBy لاحقاً
+        const querySnapshot = await getDocs(q);
+        
+        list.innerHTML = '';
+        
+        if (querySnapshot.empty) {
+            list.innerHTML = '<p>لا توجد عدادات حالياً.</p>';
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const plan = docSnap.data();
+            const planId = docSnap.id;
+            
+            let isFull = plan.sold >= plan.stock;
+            let statusHtml = isFull ? '<span style="color:red; font-weight:bold;">(مكتمل)</span>' : '';
+            
+            list.innerHTML += `
+                <div class="plan-item" style="${isFull ? 'opacity:0.6; background:#f0f0f0;' : ''}">
+                    <div>
+                        <strong>${plan.name}</strong> ${statusHtml} <br>
+                        <small>السعر: ${plan.price.toLocaleString()} | الربح: ${plan.profit.toLocaleString()} | المشتركين: ${plan.sold}/${plan.stock}</small>
+                    </div>
+                    <button onclick="deletePlan('${planId}')" class="btn-del">حذف</button>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = '<p style="color:red">فشل تحميل العدادات.</p>';
+    }
+}
+
+// حذف خطة من قاعدة البيانات
+window.deletePlan = async function(planId) {
+    if(confirm('هل أنت متأكد؟ سيتم حذف هذا العداد من تطبيق المستخدمين أيضاً.')) {
+        try {
+            await deleteDoc(doc(db, "plans", planId));
+            renderPlans(); // تحديث القائمة
+        } catch (e) {
+            alert("حدث خطأ أثناء الحذف");
+        }
+    }
+}
+
+/* === 2. إدارة المستثمرين (Users Database) === */
+
+window.searchUser = async function() {
+    const id = document.getElementById('searchId').value.trim();
+    if(!id) return alert("يرجى إدخال ID");
+
+    try {
+        // البحث المباشر في قاعدة البيانات
+        const docRef = doc(db, "users", id);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            currentUser = docSnap.data();
+            currentUser.dbId = docSnap.id; // حفظ المعرف
+
+            document.getElementById('userResult').style.display = 'block';
+            document.getElementById('uName').innerText = currentUser.name;
+            document.getElementById('uID').innerText = currentUser.id;
+            document.getElementById('uBalance').value = currentUser.balance;
+            
+            const status = currentUser.status || 'active';
+            const badge = document.getElementById('uStatus');
+            badge.innerText = status === 'active' ? 'نشط' : 'محظور';
+            badge.style.color = status === 'active' ? 'green' : 'red';
+        } else {
+            alert('المستخدم غير موجود في قاعدة البيانات!');
+            document.getElementById('userResult').style.display = 'none';
+        }
+    } catch (e) {
+        console.error(e);
+        alert("خطأ في الاتصال");
+    }
+}
+
+window.updateBalance = function(direction) {
+    let val = parseInt(document.getElementById('uBalance').value) || 0;
     if(direction === 1) val += 1000;
     else val -= 1000;
     document.getElementById('uBalance').value = val;
 }
 
-function saveUserChanges() {
-    if(currentUser) {
-        currentUser.balance = parseInt(document.getElementById('uBalance').value);
-        alert(`تم حفظ رصيد ${currentUser.name} الجديد: ${currentUser.balance}`);
-        // هنا كود الحفظ في فايربيس
+window.saveUserChanges = async function() {
+    if(currentUser && currentUser.dbId) {
+        const newBalance = parseInt(document.getElementById('uBalance').value);
+        
+        try {
+            const userRef = doc(db, "users", currentUser.dbId);
+            await updateDoc(userRef, {
+                balance: newBalance
+            });
+            alert(`تم تحديث رصيد ${currentUser.name} بنجاح ✅`);
+        } catch (e) {
+            console.error(e);
+            alert("فشل الحفظ ❌");
+        }
     }
 }
 
-function banUser() {
-    if(currentUser) {
-        currentUser.status = 'banned';
-        alert('تم حظر المستخدم وتعطيل حسابه');
-        document.getElementById('uStatus').innerText = 'محظور';
-        document.getElementById('uStatus').style.color = 'red';
+window.banUser = async function() {
+    if(currentUser && currentUser.dbId) {
+        if(confirm("هل أنت متأكد من حظر هذا المستخدم؟")) {
+            try {
+                const userRef = doc(db, "users", currentUser.dbId);
+                await updateDoc(userRef, {
+                    status: 'banned'
+                });
+                alert('تم حظر المستخدم');
+                document.getElementById('uStatus').innerText = 'محظور';
+                document.getElementById('uStatus').style.color = 'red';
+            } catch(e) {
+                alert("فشل العملية");
+            }
+        }
     }
 }
 
-/* === 4. المذكرة (Tab 3) === */
-function addNote() {
+/* === 3. المذكرة (محلية - LocalStorage) === */
+window.addNote = function() {
     const name = document.getElementById('noteName').value;
     const date = document.getElementById('noteDate').value;
     if(!name || !date) return;
@@ -159,7 +243,7 @@ function addNote() {
     renderNotes();
 }
 
-function renderNotes() {
+window.renderNotes = function() {
     const tbody = document.getElementById('notesList');
     tbody.innerHTML = '';
     notes.forEach((n, i) => {
@@ -173,49 +257,8 @@ function renderNotes() {
     });
 }
 
-function deleteNote(i) {
+window.deleteNote = function(i) {
     notes.splice(i, 1);
     localStorage.setItem('adminNotes', JSON.stringify(notes));
     renderNotes();
-}
-
-/* === 5. السحوبات (Tab 4) === */
-function renderWithdrawals() {
-    const grid = document.getElementById('withdrawalsList');
-    grid.innerHTML = '';
-    
-    mockWithdrawals.forEach(req => {
-        grid.innerHTML += `
-            <div class="withdraw-card" id="req-${req.id}">
-                <div class="w-header">
-                    <span>${req.name}</span>
-                    <span style="color:#f39c12">${req.amount} IQD</span>
-                </div>
-                <div class="w-wallet">
-                    محفظة التحويل:<br>
-                    ${req.wallet}
-                </div>
-                <div class="w-actions">
-                    <button onclick="handleReq(${req.id}, 'approve')" style="background:#27ae60">موافقة</button>
-                    <button onclick="handleReq(${req.id}, 'reject')" style="background:#c0392b">رفض وحذف</button>
-                    <button onclick="handleReq(${req.id}, 'ban')" style="background:#34495e">تعطيل الحساب</button>
-                </div>
-            </div>
-        `;
-    });
-}
-
-function handleReq(id, action) {
-    const el = document.getElementById(`req-${id}`);
-    if(action === 'approve') {
-        if(confirm('هل قمت بالتحويل؟ سيتم خصم الرصيد.')) {
-            el.remove();
-            alert('تمت الموافقة بنجاح');
-        }
-    } else if (action === 'reject') {
-        el.remove();
-    } else {
-        alert('تم تعطيل حساب المستخدم صاحب الطلب');
-        el.style.opacity = '0.5';
-    }
 }
