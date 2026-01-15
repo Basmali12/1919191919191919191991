@@ -1,174 +1,175 @@
-/*
-    ملف الميزات الإضافية والمتجر
-    يحتوي على:
-    1. المتجر (Store)
-    2. الهدية اليومية (Daily Gift)
-    3. عجلة الحظ (Lucky Wheel)
-    4. لوحة المتصدرين (Leaderboard)
+/* *** نظام الحماية والأمان (Anti-Cheat & Security Core) ***
+   هذا الجزء يمنع المستخدم من التلاعب بالوقت لتسريع العدادات 
 */
+const SECURITY_KEY = 'secure_time_check_v1';
 
-document.addEventListener('DOMContentLoaded', () => {
-    renderFeaturesPage();
-});
+function checkTimeIntegrity() {
+    const now = Date.now();
+    const lastTime = localStorage.getItem(SECURITY_KEY);
 
-function renderFeaturesPage() {
-    const container = document.getElementById('features-container');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="features-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin: 0 15px;">
-            <div class="glass-card" onclick="claimDailyGift()" style="text-align:center; cursor:pointer; background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(0,0,0,0)); border: 1px solid gold;">
-                <div style="font-size:2.5rem;">🎁</div>
-                <h4 style="margin:5px 0;">الهدية اليومية</h4>
-                <p style="font-size:0.7rem; color:#ddd;">اضغط للاستلام</p>
-            </div>
-            
-            <div class="glass-card" onclick="spinWheel()" style="text-align:center; cursor:pointer; background: linear-gradient(135deg, rgba(255,0,100,0.2), rgba(0,0,0,0)); border: 1px solid deeppink;">
-                <div style="font-size:2.5rem;">🎡</div>
-                <h4 style="margin:5px 0;">عجلة الحظ</h4>
-                <p style="font-size:0.7rem; color:#ddd;">جرب حظك</p>
-            </div>
-        </div>
-
-        <div class="glass-card" style="margin-top:20px;">
-            <h3 style="color:#ffd700; text-align:center;">🏆 كبار المستثمرين</h3>
-            <ul id="leaderboardList" style="list-style:none; padding:0;">
-                </ul>
-        </div>
-
-        <div class="glass-card" style="margin-top:20px;">
-            <h2 style="border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">🏪 المتجر الإلكتروني</h2>
-            
-            <div class="store-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
-                
-                <div class="store-item" style="background:white; padding:10px; border-radius:10px; text-align:center; color:#333;">
-                    <div style="height:60px; background:#d32f2f; color:white; display:grid; place-items:center; border-radius:8px; font-weight:bold;">Asia Cell</div>
-                    <h4 style="margin:5px 0;">رصيد آسيا 5$</h4>
-                    <p style="color:purple; font-weight:bold;">8,000 IQD</p>
-                    <button onclick="buyStoreItem('Asia 5$', 8000)" style="background:#333; color:white; border:none; padding:5px 15px; border-radius:5px; width:100%;">شراء</button>
-                </div>
-
-                <div class="store-item" style="background:white; padding:10px; border-radius:10px; text-align:center; color:#333;">
-                    <div style="height:60px; background:#000; color:white; display:grid; place-items:center; border-radius:8px; font-weight:bold;">Zain</div>
-                    <h4 style="margin:5px 0;">رصيد زين 5$</h4>
-                    <p style="color:purple; font-weight:bold;">8,000 IQD</p>
-                    <button onclick="buyStoreItem('Zain 5$', 8000)" style="background:#333; color:white; border:none; padding:5px 15px; border-radius:5px; width:100%;">شراء</button>
-                </div>
-
-                <div class="store-item" style="background:white; padding:10px; border-radius:10px; text-align:center; color:#333;">
-                    <div style="height:60px; background:orange; color:white; display:grid; place-items:center; border-radius:8px; font-weight:bold;">PUBG</div>
-                    <h4 style="margin:5px 0;">360 شدة</h4>
-                    <p style="color:purple; font-weight:bold;">7,500 IQD</p>
-                    <button onclick="buyStoreItem('PUBG 360UC', 7500)" style="background:#333; color:white; border:none; padding:5px 15px; border-radius:5px; width:100%;">شراء</button>
-                </div>
-
-                 <div class="store-item" style="background:white; padding:10px; border-radius:10px; text-align:center; color:#333;">
-                    <div style="height:60px; background:linear-gradient(to right, purple, blue); color:white; display:grid; place-items:center; border-radius:8px; font-weight:bold;">Ludo</div>
-                    <h4 style="margin:5px 0;">1M ذهب</h4>
-                    <p style="color:purple; font-weight:bold;">5,000 IQD</p>
-                    <button onclick="buyStoreItem('Ludo 1M', 5000)" style="background:#333; color:white; border:none; padding:5px 15px; border-radius:5px; width:100%;">شراء</button>
-                </div>
-
-            </div>
-        </div>
-    `;
-
-    renderLeaderboard();
+    if (lastTime && now < parseInt(lastTime)) {
+        // إذا كان الوقت الحالي أقل من آخر وقت محفوظ، يعني المستخدم رجع ساعة التليفون
+        document.body.innerHTML = '<h1 style="color:red;text-align:center;margin-top:50px;">🚫 تم اكتشاف تلاعب بالوقت! <br> يرجى ضبط ساعة هاتفك.</h1>';
+        throw new Error("Time Manipulation Detected");
+    }
+    
+    // حفظ الوقت الحالي
+    localStorage.setItem(SECURITY_KEY, now);
 }
 
-// === منطق الميزات ===
+// تشغيل فحص الأمان كل ثانية
+setInterval(checkTimeIntegrity, 1000);
+checkTimeIntegrity(); // فحص أولي عند التحميل
 
-// 1. الهدية اليومية
-window.claimDailyGift = () => {
-    // التحقق من التاريخ (محاكاة بسيطة)
-    const today = new Date().toDateString();
-    const lastClaim = localStorage.getItem('lastDailyGift');
+/* ========================================= */
 
-    if (lastClaim === today) {
-        showMsg("❌ لقد استلمت هديتك اليوم، عد غداً!", "error");
-        return;
-    }
-
-    const giftAmount = 250; // قيمة الهدية
-    window.userLocalData.balance += giftAmount;
-    window.saveData();
-    window.updateWalletUI();
-    
-    localStorage.setItem('lastDailyGift', today);
-    showMsg(`🎉 مبروك! حصلت على هدية يومية ${giftAmount} IQD`, "success");
+// === تهيئة البيانات ===
+let userData = JSON.parse(localStorage.getItem('keyAppUser_v5')) || {
+    isRegistered: false,
+    name: '',
+    id: 'ID' + Math.floor(10000 + Math.random() * 90000),
+    balance: 0,
+    plans: []
 };
 
-// 2. عجلة الحظ (محاكاة)
-window.spinWheel = () => {
-    if (window.userLocalData.balance < 500) {
-        showMsg("تحتاج 500 IQD على الأقل لتدوير العجلة", "error");
-        return;
-    }
+// === عند تحميل الصفحة ===
+document.addEventListener('DOMContentLoaded', () => {
+    checkLogin();
+    updateUI();
+    generateInviteLink();
+    startLiveTimer(); // تشغيل العداد الانميشن
+});
 
-    if(confirm("تدوير العجلة يكلف 500 IQD.. هل أنت موافق؟")) {
-        window.userLocalData.balance -= 500;
-        
-        // نتائج عشوائية
-        const prizes = [0, 100, 200, 1000, 5000];
-        const win = prizes[Math.floor(Math.random() * prizes.length)];
-        
-        setTimeout(() => {
-            if(win > 0) {
-                window.userLocalData.balance += win;
-                showMsg(`🎡 توقفت العجلة وربحت ${win} IQD!`, "success");
-            } else {
-                showMsg("🎡 حظ أوفر في المرة القادمة!", "info");
-            }
-            window.saveData();
-            window.updateWalletUI();
-        }, 1000); // تأخير بسيط كأنها تدور
-    }
-};
-
-// 3. شراء من المتجر
-window.buyStoreItem = (itemName, price) => {
-    if (window.userLocalData.balance < price) {
-        showMsg(`❌ رصيدك غير كافي لشراء ${itemName}`, "error");
-        return;
-    }
-
-    // خصم الرصيد
-    window.userLocalData.balance -= price;
-    
-    // إضافة للسجل
-    window.userLocalData.history.unshift({
-        type: 'store',
-        amount: price,
-        date: new Date().toLocaleDateString(),
-        status: 'pending' // شراء يحتاج تسليم يدوي عادة
+// === 1. الوظائف الأساسية ===
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.style.display = 'none';
+        el.classList.remove('active');
     });
+    
+    const target = document.getElementById(tabId);
+    if(target) {
+        target.style.display = 'block';
+        target.classList.add('active');
+        gsap.fromTo(target, {opacity: 0, y: 10}, {opacity: 1, y: 0, duration: 0.3});
+    }
 
-    window.saveData();
-    window.updateWalletUI();
-    showMsg(`✅ تم شراء ${itemName} بنجاح!\nسيصلك الكود في الإشعارات قريباً.`, "success");
-};
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    // تحديد الزر النشط (تقريبي)
+    if(tabId === 'home') document.querySelector('.center-btn').classList.add('active');
+}
 
-// 4. تعبئة المتصدرين
-function renderLeaderboard() {
-    const list = document.getElementById('leaderboardList');
-    const fakeUsers = [
-        { name: 'Ahmed Ali', profit: '1,500,000' },
-        { name: 'Sarah K.', profit: '950,000' },
-        { name: 'Hunter_99', profit: '820,000' },
-        { name: 'Mostafa', profit: '600,000' }
-    ];
+// === 2. نظام المستخدم والتسجيل ===
+function checkLogin() {
+    const modal = document.getElementById('loginModal');
+    if (!userData.isRegistered) {
+        modal.style.display = 'flex';
+    } else {
+        modal.style.display = 'none';
+        document.getElementById('headerName').innerText = userData.name;
+        document.getElementById('userId').innerText = userData.id;
+    }
+}
 
-    fakeUsers.forEach((u, index) => {
-        let medal = '';
-        if(index === 0) medal = '🥇';
-        if(index === 1) medal = '🥈';
-        if(index === 2) medal = '🥉';
+function registerUser() {
+    const name = document.getElementById('regName').value;
+    const pass = document.getElementById('regPass').value;
+    if (name.length < 3 || pass.length < 4) return alert('يرجى ملء البيانات بشكل صحيح');
+    
+    userData.isRegistered = true;
+    userData.name = name;
+    saveData();
+    checkLogin();
+}
 
-        list.innerHTML += `
-            <li style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid rgba(255,255,255,0.1);">
-                <span>${medal} ${u.name}</span>
-                <span style="color:#00e676;">${u.profit} IQD</span>
-            </li>
-        `;
-    });
+function logout() {
+    if(confirm('هل تريد تسجيل الخروج؟')) {
+        localStorage.removeItem('keyAppUser_v5');
+        location.reload();
+    }
+}
+
+// === 3. الوظائف المطلوبة (قريباً + الإيداع) ===
+
+// وظيفة عامة لأي شيء غير جاهز
+function showComingSoon() {
+    alert('⏳ قريباً.. هذه الميزة قيد التطوير والصيانة حالياً.');
+}
+
+// الإيداع - تم التحديث لليوزر الجديد
+function showDepositInfo() {
+    alert('لشحن الرصيد يرجى مراسلة الوكيل المعتمد على التليجرام:\n\nUser: @an_ln2\n\nيرجى إرسال صورة التحويل والآيدي الخاص بك.');
+    window.open('https://t.me/an_ln2', '_blank');
+}
+
+// رابط الدعوة - يعمل الآن
+function generateInviteLink() {
+    const linkInput = document.getElementById('myInviteLink');
+    if(linkInput) {
+        // رابط وهمي يحاكي الموقع الحقيقي مع كود المستخدم
+        linkInput.value = `https://key-invest.app/join?ref=${userData.id}`;
+    }
+}
+
+function copyInviteLink() {
+    const copyText = document.getElementById("myInviteLink");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); 
+    navigator.clipboard.writeText(copyText.value);
+    alert("✅ تم نسخ رابط الدعوة: " + copyText.value);
+}
+
+// === 4. نظام العداد (Animation) ===
+function startLiveTimer() {
+    const timerElement = document.getElementById('dailyTimer');
+    // مؤقت وهمي يعد تنازلياً حتى نهاية اليوم
+    setInterval(() => {
+        const now = new Date();
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const diff = endOfDay - now;
+        
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        if(timerElement) {
+            timerElement.innerText = 
+                (hours < 10 ? "0" + hours : hours) + ":" + 
+                (minutes < 10 ? "0" + minutes : minutes) + ":" + 
+                (seconds < 10 ? "0" + seconds : seconds);
+        }
+    }, 1000);
+}
+
+// === 5. طلب الباقات ===
+function requestPlan(type, price) {
+    if(confirm('هل تريد إرسال طلب تفعيل لهذه الباقة؟')) {
+        userData.plans.push({type: type, status: 'pending', date: new Date().toLocaleDateString()});
+        saveData();
+        updateUI();
+        alert('تم إرسال الطلب للمراجعة.');
+        switchTab('profile');
+    }
+}
+
+// تحديث الواجهة
+function updateUI() {
+    document.getElementById('walletBalance').innerText = userData.balance.toLocaleString() + ' IQD';
+    document.getElementById('teamCount').innerText = Math.floor(Math.random() * 5); // رقم عشوائي للتجربة
+    
+    const list = document.getElementById('myPlansList');
+    if(list) {
+        list.innerHTML = '';
+        if(userData.plans.length === 0) list.innerHTML = '<p style="text-align:center;color:#999">لا توجد اشتراكات</p>';
+        userData.plans.forEach(p => {
+            list.innerHTML += `<li class="menu-item" style="justify-content:space-between"><span>${p.type}</span> <span style="color:orange">قيد المراجعة</span></li>`;
+        });
+    }
+}
+
+// حفظ البيانات
+function saveData() {
+    localStorage.setItem('keyAppUser_v5', JSON.stringify(userData));
 }
