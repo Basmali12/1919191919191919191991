@@ -74,30 +74,8 @@
 
             <div class="plans-container">
                 <h2 style="color:var(--primary); margin-bottom:15px;">باقات الاستثمار</h2>
-                <div class="plan-box gsap-card">
-                    <div class="plan-header"><i class="fas fa-coins"></i><h3>باقة المبتدئ</h3></div>
-                    <div class="plan-details-grid">
-                        <div><span class="p-detail">السعر</span><span class="p-val">100,000</span></div>
-                        <div><span class="p-detail">الربح</span><span class="p-val">1,500</span></div>
-                    </div>
-                    <div class="stock-info">
-                        <div class="stock-bar"><div class="stock-fill" style="width: 50%;"></div></div>
-                        <span class="stock-text">متاح: 10/20</span>
-                    </div>
-                    <button onclick="requestPlan('starter', 100000, 1)">اشتراك الآن</button>
-                </div>
-                <div class="plan-box gsap-card featured-plan">
-                    <div class="badge">الأكثر مبيعاً</div>
-                    <div class="plan-header"><i class="fas fa-gem"></i><h3>باقة المحترف</h3></div>
-                    <div class="plan-details-grid">
-                        <div><span class="p-detail">السعر</span><span class="p-val">500,000</span></div>
-                        <div><span class="p-detail">الربح</span><span class="p-val">8,000</span></div>
-                    </div>
-                    <div class="stock-info">
-                        <div class="stock-bar"><div class="stock-fill" style="width: 80%;"></div></div>
-                        <span class="stock-text">متاح: 4/20</span>
-                    </div>
-                    <button onclick="requestPlan('pro', 500000, 2)">اشتراك الآن</button>
+                <div id="dynamicPlansArea">
+                    <p style="text-align:center; padding:20px;">جاري تحميل الباقات...</p>
                 </div>
             </div>
         </section>
