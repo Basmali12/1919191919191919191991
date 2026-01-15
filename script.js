@@ -1,13 +1,13 @@
 /* =========================================
-   Key Invest VIP - Main Logic & Auth
+   Key Invest VIP - User App (Connected)
    ========================================= */
 
-// 1. استيراد المكتبات الضرورية (Auth + Firestore)
+// 1. استيراد المكتبات
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// 2. إعدادات مشروعك الحقيقية (تم دمجها هنا)
+// 2. إعدادات Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyAFzCkQI0jedUl8W9xO1Bwzdg2Rhnxsh-s",
     authDomain: "kj1i-c1d4d.firebaseapp.com",
@@ -18,17 +18,12 @@ const firebaseConfig = {
     measurementId: "G-J9QPH9Z1K1"
 };
 
-// 3. تهيئة الاتصال بـ Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);      // قاعدة البيانات
-const auth = getAuth(app);         // المصادقة
-const provider = new GoogleAuthProvider(); // مزود جوجل
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-// ==================================================
-//  بداية منطق التطبيق (Logic)
-// ==================================================
-
-// === 1. منطق تثبيت التطبيق (PWA) ===
+// === منطق PWA (التثبيت) ===
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -54,7 +49,7 @@ window.closeInstallBanner = function() {
     if (banner) banner.style.display = 'none';
 }
 
-// === 2. المتغيرات والبدء ===
+// === المتغيرات والبدء ===
 let userData = {
     id: null,
     name: 'زائر',
@@ -63,7 +58,6 @@ let userData = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // التحقق مما إذا كان هناك مستخدم مسجل مسبقاً في الهاتف
     const savedId = localStorage.getItem('keyApp_userId');
     if (savedId) {
         startDataListener(savedId);
@@ -72,57 +66,94 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     startLiveTimer();
+    fetchPlansFromAdmin(); // دالة جديدة لجلب الخطط من الأدمن
     
-    // انميشن بسيط عند الفتح
     if(window.gsap) {
         gsap.from(".app-header", {y: -50, opacity: 0, duration: 0.8});
         gsap.from(".balance-card", {scale: 0.9, opacity: 0, delay: 0.3});
     }
 });
 
-// === 3. وظائف تسجيل الدخول ===
+// === دالة جلب الخطط من الأدمن (جديد) ===
+async function fetchPlansFromAdmin() {
+    const container = document.getElementById('dynamicPlansArea');
+    if(!container) return;
 
-// دالة الدخول عبر جوجل (الحقيقية)
+    try {
+        const querySnapshot = await getDocs(collection(db, "plans"));
+        container.innerHTML = '';
+
+        if(querySnapshot.empty) {
+            container.innerHTML = '<p style="text-align:center">لا توجد باقات متاحة حالياً.</p>';
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const p = docSnap.data();
+            const planId = docSnap.id;
+            
+            // حساب نسبة الامتلاء
+            const percent = (p.sold / p.stock) * 100;
+            const isFull = p.sold >= p.stock;
+            
+            // قالب HTML للباقة
+            const html = `
+            <div class="plan-box gsap-card ${isFull ? 'full-plan' : ''}" style="${isFull ? 'opacity:0.7; pointer-events:none' : ''}">
+                <div class="plan-header"><i class="fas fa-gem"></i><h3>${p.name}</h3></div>
+                <div class="plan-details-grid">
+                    <div><span class="p-detail">السعر</span><span class="p-val">${p.price.toLocaleString()}</span></div>
+                    <div><span class="p-detail">الربح</span><span class="p-val">${p.profit.toLocaleString()}</span></div>
+                </div>
+                <div class="stock-info">
+                    <div class="stock-bar"><div class="stock-fill" style="width: ${percent}%;"></div></div>
+                    <span class="stock-text">متاح: ${p.sold}/${p.stock}</span>
+                </div>
+                <button onclick="requestPlan('${p.name}', ${p.price}, '${planId}')">
+                    ${isFull ? 'مكتمل' : 'اشتراك الآن'}
+                </button>
+            </div>
+            `;
+            container.innerHTML += html;
+        });
+    } catch (e) {
+        console.error("Error fetching plans:", e);
+    }
+}
+
+// === وظائف تسجيل الدخول ===
 window.loginGoogle = function() {
     signInWithPopup(auth, provider)
     .then(async (result) => {
         const user = result.user;
-        // نستخدم جزء من الـ UID الخاص بجوجل ليكون ID المستخدم
         const userId = "USER_" + user.uid.substring(0, 10); 
         
-        // التحقق هل المستخدم جديد أم قديم في قاعدة البيانات
         const docRef = doc(db, "users", userId);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
-            // مستخدم جديد: ننشئ له حساب في قاعدة البيانات
             const newUser = {
                 id: userId,
                 name: user.displayName || 'مستخدم جوجل',
                 email: user.email,
                 balance: 0,
                 plans: [],
+                status: 'active', // مهم للحظر
                 createdAt: new Date().toISOString()
             };
             await setDoc(doc(db, "users", userId), newUser);
         }
         
-        // حفظ الآيدي محلياً والدخول
         localStorage.setItem('keyApp_userId', userId);
         document.getElementById('loginModal').style.display = 'none';
-        
-        // بدء جلب البيانات
         startDataListener(userId);
-        
         window.showMsg("تم الدخول", `أهلاً بك ${user.displayName}`, "✅");
 
     }).catch((error) => {
         console.error(error);
-        window.showMsg("تنبيه", "فشل تسجيل الدخول. هل أضفت رابط موقعك في إعدادات Firebase؟", "❌");
+        window.showMsg("تنبيه", "فشل تسجيل الدخول.", "❌");
     });
 }
 
-// دالة دخول الزائر (للتجربة)
 window.loginGuest = async function() {
     const newId = 'GUEST_' + Math.floor(100000 + Math.random() * 900000);
     const newUser = {
@@ -130,6 +161,7 @@ window.loginGuest = async function() {
         name: 'ضيف',
         balance: 0,
         plans: [],
+        status: 'active',
         createdAt: new Date().toISOString()
     };
     
@@ -139,7 +171,6 @@ window.loginGuest = async function() {
         document.getElementById('loginModal').style.display = 'none';
         startDataListener(newId);
     } catch (e) {
-        console.error(e);
         window.showMsg("خطأ", "فشل الاتصال بقاعدة البيانات", "⚠️");
     }
 }
@@ -153,36 +184,35 @@ window.logout = function() {
     });
 }
 
-// === 4. الاستماع الحي للبيانات (Real-time) ===
+// === الاستماع الحي للبيانات ===
 function startDataListener(userId) {
-    // هذه الدالة تراقب أي تغيير في قاعدة البيانات وتعكسه في التطبيق فوراً
     onSnapshot(doc(db, "users", userId), (docSnap) => {
         if (docSnap.exists()) {
             userData = docSnap.data();
+            
+            // التحقق من الحظر
+            if (userData.status === 'banned') {
+                document.body.innerHTML = '<h1 style="text-align:center; padding:50px; color:red">تم حظر حسابك لمخالفة القوانين</h1>';
+                localStorage.removeItem('keyApp_userId');
+                return;
+            }
+
             updateUI();
-            // تأكد من إخفاء المودال
             document.getElementById('loginModal').style.display = 'none';
         } else {
-            // إذا تم حذف المستخدم من القاعدة
             localStorage.removeItem('keyApp_userId');
             location.reload();
         }
-    }, (error) => {
-        console.error("Error getting document:", error);
     });
 }
 
-// تحديث الواجهة بالبيانات الجديدة
 function updateUI() {
-    // تحديث النصوص
     if(document.getElementById('headerName')) document.getElementById('headerName').innerText = userData.name;
     if(document.getElementById('userId')) document.getElementById('userId').innerText = userData.id;
     if(document.getElementById('walletBalance')) document.getElementById('walletBalance').innerText = userData.balance.toLocaleString() + ' IQD';
     if(document.getElementById('walletBalance2')) document.getElementById('walletBalance2').innerText = userData.balance.toLocaleString() + ' IQD';
     if(document.getElementById('myInviteCode')) document.getElementById('myInviteCode').innerText = userData.id;
-    if(document.getElementById('inviteUrlDisplay')) document.getElementById('inviteUrlDisplay').innerText = `https://basmali12.github.io?ref=${userData.id}`;
 
-    // تحديث قوائم الاشتراكات
     const list = document.getElementById('myPlansList');
     if(list) {
         list.innerHTML = '';
@@ -199,12 +229,48 @@ function updateUI() {
             list.innerHTML = '<li style="text-align:center; color:#999; padding:10px;">لا توجد اشتراكات</li>';
         }
     }
-    
-    // تحديث عدد الفريق (وهمي حالياً، يمكن ربطه لاحقاً)
-    if(document.getElementById('teamCount')) document.getElementById('teamCount').innerText = userData.teamCount || 0;
 }
 
-// === 5. التنقل والوظائف العامة ===
+// === الوظائف العامة (طلب اشتراك) ===
+window.requestPlan = async function(planName, price, planId) {
+    if(!userData.id) return;
+    
+    // التحقق من الرصيد
+    if(userData.balance < price) {
+        return window.showMsg("عذراً", "رصيدك غير كافي للاشتراك بهذه الباقة", "🚫");
+    }
+
+    if(confirm(`تأكيد الاشتراك بـ ${planName} بسعر ${price.toLocaleString()} IQD؟`)) {
+        const newPlan = {
+            type: planName,
+            price: price,
+            status: 'pending',
+            date: new Date().toISOString()
+        };
+
+        try {
+            const userRef = doc(db, "users", userData.id);
+            
+            // خصم الرصيد وإضافة الباقة
+            await updateDoc(userRef, {
+                balance: userData.balance - price,
+                plans: arrayUnion(newPlan)
+            });
+
+            // تحديث عدد المشتركين في العداد (اختياري لكن مفضل)
+            /* يمكنك إضافة كود هنا لزيادة عداد sold في كولكشن plans 
+               باستخدام increment من فايربيس
+            */
+
+            window.showMsg("نجاح", "تم الاشتراك بنجاح وخصم المبلغ", "✅");
+            window.switchTab('profile');
+        } catch (e) {
+            console.error(e);
+            window.showMsg("خطأ", "فشل العملية", "❌");
+        }
+    }
+}
+
 window.switchTab = function(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => {
         el.style.display = 'none';
@@ -225,30 +291,6 @@ window.switchTab = function(tabId) {
     else if(tabId === 'wallet') document.querySelectorAll('.nav-item')[4].classList.add('active');
 }
 
-window.requestPlan = async function(type, price, duration) {
-    if(!userData.id) return;
-    if(confirm(`تأكيد الاشتراك بـ ${price.toLocaleString()} IQD؟`)) {
-        const newPlan = {
-            type: type === 'starter' ? 'باقة المبتدئ' : 'باقة المحترف',
-            price: price,
-            status: 'pending',
-            date: new Date().toISOString()
-        };
-        try {
-            const userRef = doc(db, "users", userData.id);
-            await updateDoc(userRef, {
-                plans: arrayUnion(newPlan)
-            });
-            window.showMsg("نجاح", "تم إرسال طلب الاشتراك للمراجعة", "✅");
-            window.switchTab('profile');
-        } catch (e) {
-            console.error(e);
-            window.showMsg("خطأ", "فشل الاتصال", "❌");
-        }
-    }
-}
-
-// وظائف مساعدة للعرض والنسخ
 window.showMsg = function(title, msg, icon) {
     document.getElementById('alertTitle').innerText = title;
     document.getElementById('alertMsg').innerText = msg;
@@ -270,10 +312,6 @@ window.showDepositInfo = function() {
 }
 window.showWithdraw = function() {
     window.showMsg("سحب", "السحب متاح يوم الجمعة فقط", "💸");
-}
-
-window.addMemberSim = function() {
-    window.showMsg("تنبيه", "هذه الميزة متاحة فقط لرؤساء الفرق", "🔒");
 }
 
 function startLiveTimer() {
