@@ -11,6 +11,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     
     <link rel="stylesheet" href="style.css">
+
+    <script>
+        // تسجيل Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+            .then(() => console.log('Service Worker Registered'))
+            .catch((err) => console.log('SW Error:', err));
+        }
+
+        // التقاط حدث التثبيت مبكراً
+        window.deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.deferredPrompt = e;
+            // محاولة إظهار البانر فوراً إذا كانت الصفحة محملة
+            const banner = document.getElementById('installBanner');
+            if (banner) banner.style.display = 'flex';
+        });
+    </script>
 </head>
 <body>
 
