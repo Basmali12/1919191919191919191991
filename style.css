@@ -5,6 +5,8 @@
     --accent: #ff9800;
     --bg: #f3f4f6;
     --text: #333;
+    --success: #00c853;
+    --danger: #d32f2f;
 }
 
 body {
@@ -14,13 +16,12 @@ body {
     padding-bottom: 90px;
     color: var(--text);
     overflow-x: hidden;
-    user-select: none; /* منع تحديد النصوص */
+    user-select: none;
 }
 
-/* === كود اخفاء واظهار التبويبات (مهم جداً) === */
+/* === إدارة التبويبات === */
 .tab-content { display: none !important; animation: fadeIn 0.4s ease-in-out; }
 .tab-content.active { display: block !important; }
-
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 /* الهيدر */
@@ -31,7 +32,7 @@ body {
     color: white; border-radius: 0 0 20px 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 .avatar-circle { width: 45px; height: 45px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-left: 10px; }
-.user-info-header { display: flex; align-items: center; }
+.logo-area { font-size: 3rem; margin-bottom: 10px; }
 
 /* بطاقة الرصيد والانميشن */
 .balance-card {
@@ -41,12 +42,9 @@ body {
     box-shadow: 0 10px 30px rgba(74, 20, 140, 0.4);
 }
 
-/* انميشن العداد الرقمي */
 .timer-anim {
-    background: rgba(0,0,0,0.3);
-    padding: 10px 20px; border-radius: 30px;
-    display: inline-block; margin-top: 10px;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 30px;
+    display: inline-block; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);
     animation: pulseGlow 2s infinite;
 }
 @keyframes pulseGlow {
@@ -59,44 +57,88 @@ body {
 .quick-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: center; }
 .action-icon { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 15px; border-radius: 10px; font-size: 0.8rem; cursor: pointer; }
 
-/* زر التليجرام الجديد */
-.telegram-btn-large {
-    display: block; text-decoration: none;
-    background: #0088cc; color: white;
-    padding: 15px; border-radius: 12px;
-    text-align: center; margin: 20px;
-    font-weight: bold; box-shadow: 0 5px 15px rgba(0, 136, 204, 0.3);
-    transition: transform 0.2s;
+/* أزرار التليجرام */
+.telegram-group { display: flex; gap: 10px; margin: 20px; }
+.telegram-btn {
+    flex: 1; text-decoration: none; color: white;
+    padding: 12px; border-radius: 12px; text-align: center;
+    font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: transform 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.telegram-btn-large:active { transform: scale(0.98); }
+.tg-channel { background: #229ED9; }
+.tg-chat { background: #5b247a; }
+.telegram-btn:active { transform: scale(0.98); }
 
-/* المتجر والباقات */
-.plan-box { background: white; padding: 20px; border-radius: 15px; margin-bottom: 15px; border: 1px solid #eee; text-align: center; }
+/* الباقات والمتجر */
+.plan-box { background: white; padding: 20px; border-radius: 15px; margin-bottom: 15px; border: 1px solid #eee; text-align: center; position: relative; }
 .featured-plan { border: 2px solid var(--accent); transform: scale(1.02); }
+.badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent); color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; }
+
+.plan-details-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0;
+    background: #f8f9fa; padding: 10px; border-radius: 10px;
+}
+.p-detail { font-size: 0.8rem; color: #555; }
+.p-val { font-weight: bold; color: var(--primary); display: block; }
+.stock-bar { height: 6px; background: #eee; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+.stock-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.5s; }
+.stock-text { font-size: 0.7rem; color: #777; margin-top: 5px; display: block; }
+
+.plan-box.sold-out { opacity: 0.7; filter: grayscale(1); pointer-events: none; }
+.plan-box.sold-out .badge { background: #555; content: 'نفذت الكمية'; }
+
 .store-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 20px; }
 .store-item { background: white; padding: 15px; border-radius: 15px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
 .store-img { height: 80px; width: 100%; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-bottom: 10px; }
 .store-img.asia { background: #d32f2f; } .store-img.zain { background: #000; } .store-img.pubg { background: #ff9800; }
 
-/* رابط الدعوة */
-.link-box { display: flex; gap: 5px; margin-top: 10px; }
-.link-box input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #eee; text-align: center; }
-.link-box button { background: var(--primary); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; }
+/* المحفظة */
+.wallet-actions { display: flex; gap: 15px; margin-top: 20px; }
+.w-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.btn-deposit { background: var(--success); }
+.btn-withdraw { background: var(--danger); }
+.history-list { list-style: none; padding: 0; margin-top: 20px; }
+.h-item { background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; border-left: 4px solid #ddd; }
+.h-item.in { border-left-color: var(--success); }
+.h-item.out { border-left-color: var(--danger); }
 
-/* القوائم والأزرار */
-button { width: 100%; padding: 12px; border: none; border-radius: 10px; background: var(--primary); color: white; cursor: pointer; font-family: inherit; }
+/* الفريق */
+.team-header { text-align: center; margin-bottom: 20px; }
+.big-number { font-size: 2.5rem; font-weight: bold; color: var(--primary); margin: 0; }
+.team-label { color: #777; font-size: 0.9rem; }
+.invite-card { background: white; padding: 20px; border-radius: 15px; text-align: center; border: 1px dashed var(--primary); margin-top: 20px; }
+.invite-link-text { font-family: monospace; background: #eee; padding: 8px; border-radius: 5px; margin: 10px 0; word-break: break-all; font-size: 0.8rem; }
+.invite-desc { font-size: 0.9rem; color: #555; line-height: 1.6; margin-bottom: 15px; }
+
+/* القوائم والناف بار */
+button { width: 100%; padding: 12px; border: none; border-radius: 10px; background: var(--primary); color: white; cursor: pointer; font-family: inherit; transition: 0.2s; }
+button:active { transform: scale(0.98); }
 .menu-item { background: white; padding: 15px; margin-bottom: 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 2px solid #f0f0f0; }
 
-/* الناف بار */
-.bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 10px 0; box-shadow: 0 -5px 10px rgba(0,0,0,0.05); z-index: 999; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 10px 0; box-shadow: 0 -5px 10px rgba(0,0,0,0.05); z-index: 999; }
 .nav-item { text-align: center; color: #bbb; flex: 1; font-size: 0.8rem; cursor: pointer; }
 .nav-item.active { color: var(--primary); }
 .nav-item i { font-size: 1.4rem; margin-bottom: 4px; display: block; }
 .floating-home { background: var(--primary); width: 55px; height: 55px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); border: 4px solid var(--bg); box-shadow: 0 5px 15px rgba(91, 36, 122, 0.4); }
 
-/* المودال والرسائل */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+/* نافذة التنبيه المخصصة */
+.custom-alert-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 3000;
+    display: none; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+}
+.custom-alert-box {
+    background: white; padding: 25px; width: 80%; border-radius: 20px;
+    text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    transform: scale(0.8); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.custom-alert-box.show { transform: scale(1); }
+.alert-icon { font-size: 3rem; margin-bottom: 15px; display: block; }
+.alert-btn { background: var(--primary); margin-top: 15px; width: auto; padding: 8px 25px; }
+
+/* المودال */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; justify-content: center; align-items: center; }
 .modal-content { background: white; padding: 30px; width: 85%; border-radius: 20px; text-align: center; }
-.modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-.coming-soon-box { text-align: center; padding: 50px 20px; color: #999; }
-.coming-soon-box i { font-size: 4rem; margin-bottom: 20px; color: #ddd; }
+.google-btn { background: #db4437; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.skip-btn { background: transparent; color: #777; border: 1px solid #ccc; }
