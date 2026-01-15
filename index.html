@@ -10,6 +10,15 @@
 </head>
 <body>
 
+    <div id="installBanner" class="install-modal">
+        <div class="install-content">
+            <div class="install-icon"><i class="fas fa-mobile-alt"></i></div>
+            <h3>تثبيت التطبيق</h3>
+            <p>للحصول على أفضل تجربة، أضف التطبيق إلى شاشتك الرئيسية.</p>
+            <button onclick="closeInstallBanner()" class="skip-install-btn">تخطي الآن</button>
+        </div>
+    </div>
+
     <div id="customAlert" class="custom-alert-overlay">
         <div class="custom-alert-box">
             <i class="alert-icon">⚠️</i>
@@ -25,7 +34,7 @@
             <h2>مرحباً بك</h2>
             <p>سجل الدخول للمتابعة</p>
             <button onclick="loginGoogle()" class="google-btn"><i class="fab fa-google"></i> تسجيل الدخول عبر Google</button>
-            <button onclick="loginGuest()" class="skip-btn">تخطي (معاينة كزائر)</button>
+            <button onclick="loginGuest()" class="skip-btn">دخول كزائر</button>
         </div>
     </div>
 
@@ -60,7 +69,6 @@
 
             <div class="plans-container">
                 <h2 class="section-head">باقات الاستثمار</h2>
-                
                 <div class="plan-box gsap-card" id="plan1">
                     <div class="plan-header"><i class="fas fa-coins"></i><h3>باقة المبتدئ</h3></div>
                     <div class="plan-details-grid">
@@ -75,7 +83,6 @@
                     </div>
                     <button onclick="requestPlan('starter', 100000, 1)">اشتراك الآن</button>
                 </div>
-
                 <div class="plan-box gsap-card featured-plan" id="plan2">
                     <div class="badge">الأكثر مبيعاً</div>
                     <div class="plan-header"><i class="fas fa-gem"></i><h3>باقة المحترف</h3></div>
@@ -96,7 +103,6 @@
 
         <section id="wallet" class="tab-content">
             <div class="section-title">المحفظة المالية</div>
-            
             <div class="balance-card" style="margin-top:0;">
                 <p>الرصيد المتاح للسحب</p>
                 <h1 id="walletBalance2">0 IQD</h1>
@@ -105,11 +111,9 @@
                     <button class="w-btn btn-withdraw" onclick="showWithdraw()"><i class="fas fa-arrow-circle-down"></i> سحب</button>
                 </div>
             </div>
-
             <div style="padding: 20px;">
                 <h3>سجل العمليات</h3>
-                <ul class="history-list" id="transList">
-                    </ul>
+                <ul class="history-list" id="transList"></ul>
             </div>
         </section>
 
@@ -124,26 +128,21 @@
 
         <section id="team" class="tab-content">
             <div class="section-title">فريقي</div>
-            
             <div class="team-header">
                 <p class="team-label">عدد الفريق</p>
                 <h2 class="big-number" id="teamCount">0</h2>
             </div>
-            
             <div class="team-header">
                 <p class="team-label">أرباح الإحالة</p>
                 <h2 class="big-number" style="color:var(--success);">0</h2>
             </div>
-
             <p style="text-align:center; margin-top:30px;">كود الدعوة الخاص بك</p>
             <p id="inviteUrlDisplay" style="text-align:center; font-size:0.8rem; color:#777;">Loading...</p>
-
             <div class="invite-card">
                 <p class="invite-desc">شارك الكود واربح 2,500 دينار لكل شخص يودع 100 ألف.</p>
                 <div class="invite-link-text" id="myInviteCode">LOADING...</div>
                 <button onclick="copyInviteLink()"><i class="fas fa-copy"></i> نسخ الكود</button>
             </div>
-
             <div style="padding:20px; text-align:center;">
                 <h4>الأعضاء (Max 10)</h4>
                 <button onclick="addMemberSim()" style="background:#444; width:auto; padding:5px 20px;">+ إضافة عضو (تجربة)</button>
@@ -157,7 +156,7 @@
                 <a href="https://t.me/keey1001" target="_blank" class="telegram-btn tg-channel">
                     <i class="fab fa-telegram-plane"></i> القناة الرسمية
                 </a>
-                <a href="https://t.me/keey1001_chat" target="_blank" class="telegram-btn tg-chat">
+                <a href="https://t.me/keey1001" target="_blank" class="telegram-btn tg-chat">
                     <i class="fas fa-comments"></i> كروب الدردشة
                 </a>
             </div>
@@ -184,6 +183,6 @@
         <div class="nav-item" onclick="switchTab('wallet')"><i class="fas fa-wallet"></i> <span>المحفظة</span></div>
     </nav>
 
-    <script src="script.js"></script>
+    <script src="script.js" type="module"></script>
 </body>
 </html>
