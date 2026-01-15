@@ -1,11 +1,11 @@
 /* =========================================
-   Key Invest VIP - User App (Connected)
+   Keey App - Fully Updated Logic
    ========================================= */
 
 // 1. استيراد المكتبات
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, arrayUnion, collection, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // 2. إعدادات Firebase
 const firebaseConfig = {
@@ -54,19 +54,38 @@ let userData = {
     id: null,
     name: 'زائر',
     balance: 0,
-    plans: []
+    plans: [],
+    lastProfitTime: 0 // للعداد
 };
 
+let timerInterval; // متغير للعداد
+
 document.addEventListener('DOMContentLoaded', () => {
-    const savedId = localStorage.getItem('keyApp_userId');
-    if (savedId) {
-        startDataListener(savedId);
-    } else {
-        document.getElementById('loginModal').style.display = 'flex';
+    // طلب إذن الإشعارات عند فتح التطبيق
+    if ("Notification" in window) {
+        Notification.requestPermission();
     }
+
+    // التحقق المزدوج (LocalStorage + Firebase Auth) لحل مشكلة الخروج
+    const savedId = localStorage.getItem('keyApp_userId');
     
-    startLiveTimer();
-    fetchPlansFromAdmin(); // دالة جديدة لجلب الخطط من الأدمن
+    // مراقب المصادقة (الأهم للاستمرار)
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // المستخدم مسجل دخول بالفعل في فايربيس
+            const userId = "USER_" + user.uid.substring(0, 10);
+            localStorage.setItem('keyApp_userId', userId); // تحديث اللوكال
+            startDataListener(userId);
+        } else if (savedId && savedId.startsWith('GUEST')) {
+            // حالة الزائر
+            startDataListener(savedId);
+        } else {
+            // غير مسجل
+            document.getElementById('loginModal').style.display = 'flex';
+        }
+    });
+    
+    fetchPlansFromAdmin();
     
     if(window.gsap) {
         gsap.from(".app-header", {y: -50, opacity: 0, duration: 0.8});
@@ -74,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// === دالة جلب الخطط من الأدمن (جديد) ===
+// === دالة جلب الخطط ===
 async function fetchPlansFromAdmin() {
     const container = document.getElementById('dynamicPlansArea');
     if(!container) return;
@@ -91,12 +110,9 @@ async function fetchPlansFromAdmin() {
         querySnapshot.forEach((docSnap) => {
             const p = docSnap.data();
             const planId = docSnap.id;
-            
-            // حساب نسبة الامتلاء
             const percent = (p.sold / p.stock) * 100;
             const isFull = p.sold >= p.stock;
             
-            // قالب HTML للباقة
             const html = `
             <div class="plan-box gsap-card ${isFull ? 'full-plan' : ''}" style="${isFull ? 'opacity:0.7; pointer-events:none' : ''}">
                 <div class="plan-header"><i class="fas fa-gem"></i><h3>${p.name}</h3></div>
@@ -120,7 +136,7 @@ async function fetchPlansFromAdmin() {
     }
 }
 
-// === وظائف تسجيل الدخول ===
+// === تسجيل الدخول ===
 window.loginGoogle = function() {
     signInWithPopup(auth, provider)
     .then(async (result) => {
@@ -137,7 +153,8 @@ window.loginGoogle = function() {
                 email: user.email,
                 balance: 0,
                 plans: [],
-                status: 'active', // مهم للحظر
+                status: 'active',
+                lastProfitTime: Date.now(), // بداية العداد عند التسجيل
                 createdAt: new Date().toISOString()
             };
             await setDoc(doc(db, "users", userId), newUser);
@@ -145,7 +162,7 @@ window.loginGoogle = function() {
         
         localStorage.setItem('keyApp_userId', userId);
         document.getElementById('loginModal').style.display = 'none';
-        startDataListener(userId);
+        // startDataListener سيتم استدعاؤها تلقائياً عبر onAuthStateChanged
         window.showMsg("تم الدخول", `أهلاً بك ${user.displayName}`, "✅");
 
     }).catch((error) => {
@@ -162,6 +179,7 @@ window.loginGuest = async function() {
         balance: 0,
         plans: [],
         status: 'active',
+        lastProfitTime: Date.now(),
         createdAt: new Date().toISOString()
     };
     
@@ -184,28 +202,96 @@ window.logout = function() {
     });
 }
 
-// === الاستماع الحي للبيانات ===
+// === الاستماع للبيانات + العداد الآمن ===
 function startDataListener(userId) {
     onSnapshot(doc(db, "users", userId), (docSnap) => {
         if (docSnap.exists()) {
             userData = docSnap.data();
             
-            // التحقق من الحظر
             if (userData.status === 'banned') {
-                document.body.innerHTML = '<h1 style="text-align:center; padding:50px; color:red">تم حظر حسابك لمخالفة القوانين</h1>';
+                document.body.innerHTML = '<h1 style="text-align:center; padding:50px; color:red">تم حظر حسابك</h1>';
                 localStorage.removeItem('keyApp_userId');
                 return;
             }
 
             updateUI();
+            checkAndStartTimer(); // تشغيل منطق العداد
             document.getElementById('loginModal').style.display = 'none';
         } else {
+            // إذا حذف المستخدم من القاعدة
             localStorage.removeItem('keyApp_userId');
-            location.reload();
         }
     });
 }
 
+// === منطق العداد الآمن (Server Side Logic) ===
+function checkAndStartTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+
+    // ربح يومي ثابت (يمكنك تغييره أو جعله يعتمد على الباقات)
+    const DAILY_PROFIT_AMOUNT = 500; 
+
+    function updateTimerDisplay() {
+        const now = Date.now();
+        // الوقت المستهدف هو: وقت آخر ربح + 24 ساعة
+        const targetTime = (userData.lastProfitTime || 0) + (24 * 60 * 60 * 1000);
+        const diff = targetTime - now;
+
+        const el = document.getElementById('dailyTimer');
+
+        if (diff <= 0) {
+            // انتهى العداد!
+            if(el) el.innerText = "جاري إضافة الأرباح...";
+            clearInterval(timerInterval);
+            
+            // إضافة الرصيد تلقائياً وتحديث وقت العداد في قاعدة البيانات
+            claimProfit(DAILY_PROFIT_AMOUNT);
+        } else {
+            // العداد شغال
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            if(el) el.innerText = 
+                (hours < 10 ? "0" + hours : hours) + ":" + 
+                (minutes < 10 ? "0" + minutes : minutes) + ":" + 
+                (seconds < 10 ? "0" + seconds : seconds);
+        }
+    }
+
+    updateTimerDisplay(); // تحديث فوري
+    timerInterval = setInterval(updateTimerDisplay, 1000); // تحديث كل ثانية
+}
+
+async function claimProfit(amount) {
+    try {
+        const userRef = doc(db, "users", userData.id);
+        
+        // تحديث الرصيد + تحديث وقت آخر ربح للوقت الحالي
+        await updateDoc(userRef, {
+            balance: increment(amount),
+            lastProfitTime: Date.now()
+        });
+
+        // إرسال إشعار للمستخدم
+        sendNotification("💰 تم إضافة الأرباح!", `تم انتهاء العداد اليومي وإضافة ${amount} IQD لمحفظتك.`);
+
+    } catch (e) {
+        console.error("Auto claim error:", e);
+    }
+}
+
+function sendNotification(title, body) {
+    // إذا المتصفح يدعم الإشعارات وتم السماح بها
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+            body: body,
+            icon: "https://j.top4top.io/p_3667oa2f41.jpg"
+        });
+    }
+}
+
+// === تحديث الواجهة ===
 function updateUI() {
     if(document.getElementById('headerName')) document.getElementById('headerName').innerText = userData.name;
     if(document.getElementById('userId')) document.getElementById('userId').innerText = userData.id;
@@ -231,11 +317,10 @@ function updateUI() {
     }
 }
 
-// === الوظائف العامة (طلب اشتراك) ===
+// === الوظائف العامة ===
 window.requestPlan = async function(planName, price, planId) {
     if(!userData.id) return;
     
-    // التحقق من الرصيد
     if(userData.balance < price) {
         return window.showMsg("عذراً", "رصيدك غير كافي للاشتراك بهذه الباقة", "🚫");
     }
@@ -250,18 +335,10 @@ window.requestPlan = async function(planName, price, planId) {
 
         try {
             const userRef = doc(db, "users", userData.id);
-            
-            // خصم الرصيد وإضافة الباقة
             await updateDoc(userRef, {
                 balance: userData.balance - price,
                 plans: arrayUnion(newPlan)
             });
-
-            // تحديث عدد المشتركين في العداد (اختياري لكن مفضل)
-            /* يمكنك إضافة كود هنا لزيادة عداد sold في كولكشن plans 
-               باستخدام increment من فايربيس
-            */
-
             window.showMsg("نجاح", "تم الاشتراك بنجاح وخصم المبلغ", "✅");
             window.switchTab('profile');
         } catch (e) {
@@ -284,11 +361,14 @@ window.switchTab = function(tabId) {
     }
     
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    
+    // تحديد الزر النشط في الناف بار
     if(tabId === 'home') document.querySelector('.center-btn').classList.add('active');
     else if(tabId === 'profile') document.querySelectorAll('.nav-item')[0].classList.add('active');
     else if(tabId === 'team') document.querySelectorAll('.nav-item')[1].classList.add('active');
     else if(tabId === 'store') document.querySelectorAll('.nav-item')[3].classList.add('active');
-    else if(tabId === 'wallet') document.querySelectorAll('.nav-item')[4].classList.add('active');
+    else if(tabId === 'soon') document.querySelectorAll('.nav-item')[4].classList.add('active');
+    else if(tabId === 'wallet') {} // المحفظة ليس لها زر مباشر في الناف الجديد
 }
 
 window.showMsg = function(title, msg, icon) {
@@ -312,13 +392,4 @@ window.showDepositInfo = function() {
 }
 window.showWithdraw = function() {
     window.showMsg("سحب", "السحب متاح يوم الجمعة فقط", "💸");
-}
-
-function startLiveTimer() {
-    setInterval(() => {
-        const d = new Date();
-        const str = `${String(23-d.getHours()).padStart(2,'0')}:${String(59-d.getMinutes()).padStart(2,'0')}:${String(59-d.getSeconds()).padStart(2,'0')}`;
-        const el = document.getElementById('dailyTimer');
-        if(el) el.innerText = str;
-    }, 1000);
 }
