@@ -1,280 +1,270 @@
-// === استيراد مكتبات فايربيس ===
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-analytics.js";
-import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-// تمت إضافة GoogleAuthProvider و signInWithPopup هنا
-import { getAuth, signInAnonymously, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+/* =========================================
+   ملف التحكم المنطقي - يدعم التحديث المباشر
+   ========================================= */
 
-// === إعدادات فايربيس ===
-const firebaseConfig = {
-    apiKey: "AIzaSyAFzCkQI0jedUl8W9xO1Bwzdg2Rhnxsh-s",
-    authDomain: "kj1i-c1d4d.firebaseapp.com",
-    projectId: "kj1i-c1d4d",
-    storageBucket: "kj1i-c1d4d.firebasestorage.app",
-    messagingSenderId: "674856242986",
-    appId: "1:674856242986:web:77642057ca6ec2036c5853",
-    measurementId: "G-J9QPH9Z1K1"
-};
-
-// تهيئة فايربيس
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const db = getFirestore(app);
-const auth = getAuth(app);
-
-// === إعدادات الباقات (محلية للتجربة) ===
-const PLAN_SETTINGS = {
-    plan1: { total: 20, sold: 10 },
-    plan2: { total: 20, sold: 18 }
-};
-
+// متغير لتخزين بيانات المستخدم الحالية
 let userData = {
-    name: 'زائر',
+    id: null,
+    name: 'ضيف',
     balance: 0,
     plans: [],
-    history: []
+    isRegistered: false
 };
 
-// === دوال الحماية والجلسة الواحدة ===
-function getDeviceId() {
-    let id = localStorage.getItem("deviceId");
-    if (!id) {
-        id = crypto.randomUUID();
-        localStorage.setItem("deviceId", id);
-    }
-    return id;
-}
-
-function newSessionId() {
-    return crypto.randomUUID();
-}
-
-async function activateSingleSession(user) {
-    const deviceId = getDeviceId();
-    const sessionId = newSessionId();
-    localStorage.setItem("sessionId", sessionId);
-
-    const userRef = doc(db, "users", user.uid);
-    
-    // نستخدم اسم جوجل إذا كان متوفراً
-    const displayName = user.displayName || userData.name || "مستخدم";
-
-    // حفظ بيانات الجلسة في فايربيس
-    await setDoc(userRef, {
-        activeDeviceId: deviceId,
-        activeSessionId: sessionId,
-        lastLoginAt: serverTimestamp(),
-        name: displayName,
-        email: user.email || "anonymous" // حفظ الايميل اذا وجد
-    }, { merge: true });
-
-    // مراقبة: إذا دخل من جهاز ثاني -> طرد
-    onSnapshot(userRef, (snap) => {
-        const data = snap.data();
-        const mySessionId = localStorage.getItem("sessionId");
-        if (data?.activeSessionId && mySessionId && data.activeSessionId !== mySessionId) {
-            signOut(auth); 
-            localStorage.removeItem("sessionId");
-            alert("⚠️ تم تسجيل الدخول من جهاز آخر، تم تسجيل خروجك.");
-            location.reload();
-        }
-        // تحديث البيانات المحلية من القاعدة إذا تغيرت
-        if(data && data.balance) userData.balance = data.balance;
-        updateUI();
-    });
-}
-
-// === عند التحميل ===
+// === عند تحميل الصفحة ===
 document.addEventListener('DOMContentLoaded', () => {
-    // مراقبة حالة تسجيل الدخول
-    onAuthStateChanged(auth, (user) => {
-        const modal = document.getElementById('loginModal');
-        if (user) {
-            modal.style.display = 'none';
-            
-            // تحديث الاسم من جوجل اذا وجد
-            if(user.displayName) {
-                userData.name = user.displayName;
-            }
-            
-            document.getElementById('headerName').innerText = userData.name;
-            document.getElementById('userId').innerText = user.uid.substring(0, 6);
-            document.getElementById('myInviteCode').innerText = user.uid.substring(0, 6);
-            document.getElementById('inviteUrlDisplay').innerText = `basmali12.github.io/ref/${user.uid.substring(0,6)}`;
-            
-            // تفعيل نظام الجلسة الواحدة
-            activateSingleSession(user);
-        } else {
-            modal.style.display = 'flex';
-        }
-    });
-
-    updateUI();
-    updateStockDisplay();
-    startLiveTimer();
-    renderHistory();
+    // 1. التحقق من وجود ID محفوظ مسبقاً
+    const savedId = localStorage.getItem('keyApp_userId');
     
-    if(localStorage.getItem('installSkipped') === 'true') {
-        document.getElementById('installBanner').style.display = 'none';
+    if (savedId) {
+        // إذا وجدنا ID، نبدأ بمراقبة بيانات هذا المستخدم من السيرفر
+        startDataListener(savedId);
+    } else {
+        // إذا لم يوجد، نظهر شاشة التسجيل
+        document.getElementById('loginModal').style.display = 'flex';
     }
+
+    // تشغيل انميشن العداد اليومي (شكلي فقط)
+    startLiveTimer();
+    // تجهيز رابط الدعوة
+    setupInviteLink();
 });
 
-// === الدوال المرفقة بـ window ===
+// === 1. دالة التسجيل (إنشاء مستخدم جديد في Firebase) ===
+async function registerUser() {
+    const nameInput = document.getElementById('regName');
+    const passInput = document.getElementById('regPass'); // (اختياري حالياً)
 
-window.closeInstallBanner = function() {
-    document.getElementById('installBanner').style.display = 'none';
-    localStorage.setItem('installSkipped', 'true');
-}
+    if (nameInput.value.length < 3) return alert('الاسم قصير جداً');
 
-window.loginGuest = function() {
-    userData.name = "زائر";
-    signInAnonymously(auth).catch((error) => {
-        alert("خطأ في الدخول: " + error.message);
-    });
-}
+    const newId = 'USER_' + Math.floor(100000 + Math.random() * 900000);
 
-// === دالة تسجيل الدخول بجوجل (المعدلة) ===
-window.loginGoogle = function() {
-    const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider)
-    .then((result) => {
-        // تم الدخول بنجاح، onAuthStateChanged سيتكفل بالباقي
-        console.log("Logged in with Google:", result.user.displayName);
-    }).catch((error) => {
-        // التعامل مع الأخطاء
-        const errorMessage = error.message;
-        alert("خطأ في تسجيل الدخول: " + errorMessage);
-        console.error(error);
-    });
-}
+    // هيكلة البيانات في قاعدة البيانات
+    const newUserProfile = {
+        id: newId,
+        name: nameInput.value,
+        password: passInput.value,
+        balance: 0,       // الرصيد الابتدائي
+        plans: [],        // مصفوفة الاشتراكات فارغة
+        teamCount: 0,     // عدد الفريق
+        createdAt: new Date().toISOString()
+    };
 
-window.logout = function() {
-    if(confirm('خروج؟')) {
-        signOut(auth).then(() => {
-            location.reload();
-        });
+    try {
+        // حفظ في Firestore
+        await window.setDoc(window.doc(window.db, "users", newId), newUserProfile);
+        
+        // حفظ الآيدي في الهاتف للدخول التلقائي
+        localStorage.setItem('keyApp_userId', newId);
+        
+        // إخفاء المودال والبدء بالاستماع
+        document.getElementById('loginModal').style.display = 'none';
+        startDataListener(newId);
+        
+        alert('تم إنشاء الحساب بنجاح!');
+    } catch (error) {
+        console.error("Error creating user:", error);
+        alert('حدث خطأ في الاتصال بالسيرفر');
     }
 }
 
-// === بقية دوال الواجهة (UI) ===
+// === 2. دالة الاستماع الحي (Core Function) ===
+// هذه الدالة هي المسؤولة عن تحديث التطبيق فوراً عند تغيير أي شيء في فايربيس
+function startDataListener(userId) {
+    // مرجع للمستند الخاص بالمستخدم
+    const userRef = window.doc(window.db, "users", userId);
 
-window.showMsg = function(title, msg, icon) {
-    document.getElementById('alertTitle').innerText = title;
-    document.getElementById('alertMsg').innerText = msg;
-    document.querySelector('.alert-icon').innerText = icon || '⚠️';
-    const overlay = document.getElementById('customAlert');
-    const box = document.querySelector('.custom-alert-box');
-    overlay.style.display = 'flex';
-    setTimeout(() => box.classList.add('show'), 10);
+    // onSnapshot تستمع لأي تغيير
+    window.onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+            userData = docSnap.data();
+            
+            // تحديث الواجهة فوراً
+            updateDashboardUI();
+            
+            // إخفاء شاشة التسجيل للتأكيد
+            document.getElementById('loginModal').style.display = 'none';
+        } else {
+            console.log("المستخدم غير موجود في قاعدة البيانات");
+            localStorage.removeItem('keyApp_userId');
+            location.reload();
+        }
+    }, (error) => {
+        console.error("خطأ في جلب البيانات:", error);
+    });
 }
 
-window.closeCustomAlert = function() {
-    const overlay = document.getElementById('customAlert');
-    const box = document.querySelector('.custom-alert-box');
-    box.classList.remove('show');
-    setTimeout(() => overlay.style.display = 'none', 300);
+// === 3. تحديث عناصر الشاشة ===
+function updateDashboardUI() {
+    // تحديث النصوص الأساسية
+    if(document.getElementById('headerName')) 
+        document.getElementById('headerName').innerText = userData.name;
+    
+    if(document.getElementById('userId')) 
+        document.getElementById('userId').innerText = userData.id;
+    
+    if(document.getElementById('walletBalance')) 
+        document.getElementById('walletBalance').innerText = userData.balance.toLocaleString() + ' IQD';
+
+    if(document.getElementById('teamCount'))
+        document.getElementById('teamCount').innerText = userData.teamCount || 0;
+
+    // تحديث قائمة الاشتراكات
+    renderPlans();
+    
+    // تحديث رابط الدعوة
+    setupInviteLink();
 }
 
-window.switchTab = function(tabId) {
+// رسم قائمة الاشتراكات بناءً على البيانات من فايربيس
+function renderPlans() {
+    const list = document.getElementById('myPlansList');
+    if(!list) return;
+
+    list.innerHTML = ''; // مسح القائمة القديمة
+
+    if (!userData.plans || userData.plans.length === 0) {
+        list.innerHTML = '<li style="text-align:center;color:#999;padding:10px;">لا توجد اشتراكات نشطة</li>';
+        return;
+    }
+
+    // ترتيب الاشتراكات (الأحدث أولاً)
+    const reversedPlans = [...userData.plans].reverse();
+
+    reversedPlans.forEach(plan => {
+        let statusText = '';
+        let statusColor = '';
+
+        if (plan.status === 'active') {
+            statusText = 'نشط ✅';
+            statusColor = '#2ecc71'; // أخضر
+        } else if (plan.status === 'pending') {
+            statusText = 'قيد المراجعة ⏳';
+            statusColor = '#f39c12'; // برتقالي
+        } else {
+            statusText = 'منتهي ❌';
+            statusColor = '#e74c3c'; // أحمر
+        }
+
+        list.innerHTML += `
+            <li class="menu-item" style="justify-content:space-between; border-right: 3px solid ${statusColor}">
+                <div>
+                    <span style="font-weight:bold; display:block">${plan.type}</span>
+                    <span style="font-size:0.75rem; color:#888">${plan.requestDate.split('T')[0]}</span>
+                </div>
+                <span style="color:${statusColor}; font-weight:bold; font-size:0.9rem">${statusText}</span>
+            </li>
+        `;
+    });
+}
+
+// === 4. طلب اشتراك جديد ===
+async function requestPlan(type, price) {
+    if(!userData.id) return;
+
+    if(confirm(`تأكيد طلب الاشتراك في باقة ${price.toLocaleString()}؟`)) {
+        // تجهيز كائن الاشتراك الجديد
+        const newPlanObj = {
+            type: type,      // مثلاً "باقة المبتدئ"
+            price: price,
+            status: 'pending', // الحالة الافتراضية
+            requestDate: new Date().toISOString()
+        };
+
+        try {
+            const userRef = window.doc(window.db, "users", userData.id);
+            
+            // استخدام arrayUnion لإضافة العنصر للمصفوفة دون حذف القديم
+            await window.updateDoc(userRef, {
+                plans: window.arrayUnion(newPlanObj)
+            });
+            
+            alert('✅ تم إرسال الطلب بنجاح! سيظهر في القائمة فوراً.');
+            switchTab('profile'); // الذهاب للبروفايل لرؤية الطلب
+            
+        } catch (e) {
+            console.error("Error adding plan:", e);
+            alert('فشل إرسال الطلب، تأكد من الإنترنت');
+        }
+    }
+}
+
+// === 5. الوظائف المساعدة والتنقل ===
+
+function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => {
         el.style.display = 'none';
         el.classList.remove('active');
     });
+    
     const target = document.getElementById(tabId);
     if(target) {
         target.style.display = 'block';
-        target.classList.add('active');
-        gsap.fromTo(target, {opacity: 0, y: 10}, {opacity: 1, y: 0, duration: 0.3});
+        // مهلة بسيطة لتشغيل الانميشن
+        setTimeout(() => target.classList.add('active'), 10);
+        
+        // GSAP Animation
+        if(window.gsap) {
+            gsap.fromTo(target, {opacity: 0, y: 15}, {opacity: 1, y: 0, duration: 0.4});
+        }
     }
+
+    // تحديث أزرار الناف بار
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    // منطق بسيط لتحديد الزر
     if(tabId === 'home') document.querySelector('.center-btn').classList.add('active');
-    else if(tabId === 'wallet') document.querySelectorAll('.nav-item')[4].classList.add('active');
-    else if(tabId === 'profile') document.querySelectorAll('.nav-item')[0].classList.add('active');
-    else if(tabId === 'team') document.querySelectorAll('.nav-item')[1].classList.add('active');
-    else if(tabId === 'store') document.querySelectorAll('.nav-item')[3].classList.add('active');
+    if(tabId === 'profile') document.querySelectorAll('.nav-item')[0].classList.add('active');
+    if(tabId === 'team') document.querySelectorAll('.nav-item')[1].classList.add('active');
+    if(tabId === 'store') document.querySelectorAll('.nav-item')[3].classList.add('active');
+    if(tabId === 'agents') document.querySelectorAll('.nav-item')[4].classList.add('active');
 }
 
-window.showDepositInfo = function() {
-    window.showMsg('إيداع رصيد', 'سيتم تحويلك للوكيل..', '💳');
-    setTimeout(() => window.open('https://t.me/an_ln2', '_blank'), 2000);
+function setupInviteLink() {
+    const linkInput = document.getElementById('myInviteLink');
+    if(linkInput && userData.id) {
+        linkInput.value = `https://key-invest.app/join?ref=${userData.id}`;
+    }
 }
 
-window.showWithdraw = function() {
-    if(userData.balance < 10000) return window.showMsg('سحب الرصيد', 'رصيدك غير كافٍ.', '🚫');
-    window.showMsg('سحب الرصيد', 'تم استلام الطلب.', '✅');
-    userData.history.unshift({type: 'سحب', amount: 0, date: new Date().toLocaleDateString()}); 
-    renderHistory();
+function copyInviteLink() {
+    const copyText = document.getElementById("myInviteLink");
+    if(!copyText) return;
+    copyText.select();
+    navigator.clipboard.writeText(copyText.value);
+    alert("تم نسخ الرابط: " + copyText.value);
 }
 
-window.copyInviteLink = function() {
-    const code = document.getElementById('myInviteCode').innerText;
-    navigator.clipboard.writeText(`https://basmali12.github.io/ref/${code}`);
-    window.showMsg('نسخ الرابط', 'تم نسخ كود الدعوة!', '📋');
+function showComingSoon() {
+    alert('⚠️ هذه الميزة قيد التطوير حالياً');
 }
 
-window.addMemberSim = function() {
-    let current = parseInt(document.getElementById('teamCount').innerText);
-    if(current < 10) document.getElementById('teamCount').innerText = current + 1;
-    else window.showMsg('تنبيه', 'الحد الأقصى للفريق 10', '🛑');
+function showDepositInfo() {
+    // فتح رابط التليجرام الخاص بالإيداع
+    window.open('https://t.me/an_ln2', '_blank');
 }
 
-window.requestPlan = function(type, price, planId) {
-    let settings = PLAN_SETTINGS['plan'+planId];
-    if(settings.sold >= settings.total) return window.showMsg('نأسف', 'نفذت الكمية!', '🔒');
-    window.showMsg('تأكيد الطلب', 'تم إرسال الطلب.', '⏳');
-    userData.plans.push({type: type, status: 'pending'});
-    updateUI(); 
-    window.switchTab('profile');
+function logout() {
+    if(confirm('تسجيل خروج؟')) {
+        localStorage.removeItem('keyApp_userId');
+        location.reload();
+    }
 }
 
-// دوال مساعدة داخلية
-function updateStockDisplay() {
-    let p1 = PLAN_SETTINGS.plan1;
-    let perc1 = (p1.sold / p1.total) * 100;
-    document.getElementById('fill1').style.width = perc1 + '%';
-    document.getElementById('txt1').innerText = `متاح: ${p1.total - p1.sold}/${p1.total}`;
-    if(p1.sold >= p1.total) document.getElementById('plan1').classList.add('sold-out');
-
-    let p2 = PLAN_SETTINGS.plan2;
-    let perc2 = (p2.sold / p2.total) * 100;
-    document.getElementById('fill2').style.width = perc2 + '%';
-    document.getElementById('txt2').innerText = `متاح: ${p2.total - p2.sold}/${p2.total}`;
-    if(p2.sold >= p2.total) document.getElementById('plan2').classList.add('sold-out');
-}
-
+// === 6. انميشن العداد (تجميلي فقط) ===
 function startLiveTimer() {
+    const timerEl = document.getElementById('dailyTimer');
+    if(!timerEl) return;
+    
     setInterval(() => {
         const now = new Date();
-        const end = new Date(); end.setHours(23, 59, 59);
+        const end = new Date();
+        end.setHours(23, 59, 59);
         const diff = end - now;
-        const h = Math.floor((diff % (86400000)) / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        document.getElementById('dailyTimer').innerText = `${h}:${m}:${s}`;
+        
+        const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const m = Math.floor((diff / (1000 * 60)) % 60);
+        const s = Math.floor((diff / 1000) % 60);
+        
+        timerEl.innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
     }, 1000);
-}
-
-function updateUI() {
-    document.getElementById('walletBalance').innerText = userData.balance.toLocaleString() + ' IQD';
-    document.getElementById('walletBalance2').innerText = userData.balance.toLocaleString() + ' IQD';
-    // لا نحتاج لتحديث الاسم هنا لأنه يحدث في onAuthStateChanged
-    const list = document.getElementById('myPlansList');
-    list.innerHTML = '';
-    if(userData.plans.length === 0) list.innerHTML = '<p style="text-align:center;color:#999">لا توجد اشتراكات</p>';
-    userData.plans.forEach(p => {
-        list.innerHTML += `<li class="menu-item" style="justify-content:space-between"><span>${p.type}</span> <span style="color:orange">قيد المراجعة</span></li>`;
-    });
-}
-
-function renderHistory() {
-    const list = document.getElementById('transList');
-    list.innerHTML = '';
-    if(userData.history.length === 0) {
-        list.innerHTML = '<li style="text-align:center; color:#999; padding:10px;">لا توجد عمليات حديثة</li>';
-        return;
-    }
-    userData.history.forEach(h => {
-        let cls = h.type === 'إيداع' ? 'in' : 'out';
-        list.innerHTML += `<li class="h-item ${cls}"><span>${h.type}</span><span>${h.date}</span></li>`;
-    });
 }
