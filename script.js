@@ -2,9 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-analytics.js";
 import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+// تمت إضافة GoogleAuthProvider و signInWithPopup هنا
+import { getAuth, signInAnonymously, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-// === إعدادات فايربيس (التي أرسلتها) ===
+// === إعدادات فايربيس ===
 const firebaseConfig = {
     apiKey: "AIzaSyAFzCkQI0jedUl8W9xO1Bwzdg2Rhnxsh-s",
     authDomain: "kj1i-c1d4d.firebaseapp.com",
@@ -34,7 +35,7 @@ let userData = {
     history: []
 };
 
-// === دوال الحماية والجلسة الواحدة (مطلوبة) ===
+// === دوال الحماية والجلسة الواحدة ===
 function getDeviceId() {
     let id = localStorage.getItem("deviceId");
     if (!id) {
@@ -54,13 +55,17 @@ async function activateSingleSession(user) {
     localStorage.setItem("sessionId", sessionId);
 
     const userRef = doc(db, "users", user.uid);
+    
+    // نستخدم اسم جوجل إذا كان متوفراً
+    const displayName = user.displayName || userData.name || "مستخدم";
+
     // حفظ بيانات الجلسة في فايربيس
     await setDoc(userRef, {
         activeDeviceId: deviceId,
         activeSessionId: sessionId,
         lastLoginAt: serverTimestamp(),
-        // يمكننا حفظ بيانات المستخدم الأساسية أيضاً
-        name: userData.name
+        name: displayName,
+        email: user.email || "anonymous" // حفظ الايميل اذا وجد
     }, { merge: true });
 
     // مراقبة: إذا دخل من جهاز ثاني -> طرد
@@ -73,7 +78,7 @@ async function activateSingleSession(user) {
             alert("⚠️ تم تسجيل الدخول من جهاز آخر، تم تسجيل خروجك.");
             location.reload();
         }
-        // تحديث البيانات المحلية من القاعدة إذا تغيرت (اختياري)
+        // تحديث البيانات المحلية من القاعدة إذا تغيرت
         if(data && data.balance) userData.balance = data.balance;
         updateUI();
     });
@@ -86,6 +91,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('loginModal');
         if (user) {
             modal.style.display = 'none';
+            
+            // تحديث الاسم من جوجل اذا وجد
+            if(user.displayName) {
+                userData.name = user.displayName;
+            }
+            
+            document.getElementById('headerName').innerText = userData.name;
             document.getElementById('userId').innerText = user.uid.substring(0, 6);
             document.getElementById('myInviteCode').innerText = user.uid.substring(0, 6);
             document.getElementById('inviteUrlDisplay').innerText = `basmali12.github.io/ref/${user.uid.substring(0,6)}`;
@@ -102,13 +114,12 @@ document.addEventListener('DOMContentLoaded', () => {
     startLiveTimer();
     renderHistory();
     
-    // إخفاء بانر التثبيت إذا تم تخطيه سابقاً
     if(localStorage.getItem('installSkipped') === 'true') {
         document.getElementById('installBanner').style.display = 'none';
     }
 });
 
-// === الدوال المرفقة بـ window (لأننا نستخدم module) ===
+// === الدوال المرفقة بـ window ===
 
 window.closeInstallBanner = function() {
     document.getElementById('installBanner').style.display = 'none';
@@ -122,12 +133,18 @@ window.loginGuest = function() {
     });
 }
 
+// === دالة تسجيل الدخول بجوجل (المعدلة) ===
 window.loginGoogle = function() {
-    // ملاحظة: تسجيل الدخول بجوجل يتطلب إعدادات إضافية في الكونسول
-    // سنستخدم الدخول المجهول مؤقتاً ولكن باسم مختلف
-    userData.name = "Google User";
-    signInAnonymously(auth).then(() => {
-        alert("تم تسجيل الدخول (محاكاة Google)");
+    const provider = new GoogleAuthProvider();
+    signInWithPopup(auth, provider)
+    .then((result) => {
+        // تم الدخول بنجاح، onAuthStateChanged سيتكفل بالباقي
+        console.log("Logged in with Google:", result.user.displayName);
+    }).catch((error) => {
+        // التعامل مع الأخطاء
+        const errorMessage = error.message;
+        alert("خطأ في تسجيل الدخول: " + errorMessage);
+        console.error(error);
     });
 }
 
@@ -240,7 +257,7 @@ function startLiveTimer() {
 function updateUI() {
     document.getElementById('walletBalance').innerText = userData.balance.toLocaleString() + ' IQD';
     document.getElementById('walletBalance2').innerText = userData.balance.toLocaleString() + ' IQD';
-    document.getElementById('headerName').innerText = userData.name;
+    // لا نحتاج لتحديث الاسم هنا لأنه يحدث في onAuthStateChanged
     const list = document.getElementById('myPlansList');
     list.innerHTML = '';
     if(userData.plans.length === 0) list.innerHTML = '<p style="text-align:center;color:#999">لا توجد اشتراكات</p>';
