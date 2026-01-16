@@ -25,7 +25,6 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             window.deferredPrompt = e;
-            // محاولة إظهار البانر فوراً إذا كانت الصفحة محملة
             const banner = document.getElementById('installBanner');
             if (banner) banner.style.display = 'flex';
         });
@@ -49,6 +48,28 @@
             <h3 id="alertTitle">تنبيه</h3>
             <p id="alertMsg">نص الرسالة</p>
             <button class="alert-btn" onclick="closeCustomAlert()">حسناً</button>
+        </div>
+    </div>
+
+    <div id="withdrawModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: right;">
+            <h3 style="text-align: center; margin-bottom: 20px;">طلب سحب أرباح</h3>
+            <p>الرصيد الكلي: <span id="wTotalBalance" style="font-weight: bold; color: green;">0</span> IQD</p>
+            
+            <label style="display:block; margin-top:10px;">المبلغ المراد سحبه:</label>
+            <input type="number" id="wAmount" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px;" placeholder="أقل مبلغ 7000">
+
+            <label style="display:block; margin-top:10px;">طريقة السحب:</label>
+            <select id="wMethod" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px;">
+                <option value="zaincash">زين كاش (ZainCash)</option>
+                <option value="mastercard">ماستر كارد (MasterCard)</option>
+            </select>
+
+            <label style="display:block; margin-top:10px;">رقم المحفظة / البطاقة:</label>
+            <input type="text" id="wAccount" style="width:100%; padding:10px; margin-bottom:20px; border:1px solid #ddd; border-radius:5px;" placeholder="رقم الهاتف أو رقم البطاقة">
+
+            <button onclick="submitWithdrawRequest()" style="background:var(--primary); width:100%;">تأكيد السحب</button>
+            <button onclick="document.getElementById('withdrawModal').style.display='none'" style="background:#555; width:100%; margin-top:10px;">إلغاء</button>
         </div>
     </div>
 
@@ -81,10 +102,17 @@
             <div class="balance-card gsap-fade">
                 <h3>الرصيد الكلي</h3>
                 <h1 id="walletBalance">0 IQD</h1>
+                
                 <div class="daily-counter-box">
-                    <p>عداد الأرباح اليومي</p>
-                    <div class="timer-anim"><span id="dailyTimer">جاري التحميل...</span></div>
+                    <p>الربح اليومي الكلي: <span id="totalDailyProfit" style="color:#f1c40f; font-weight:bold;">0</span> IQD</p>
+                    <div class="timer-anim">
+                        <span id="dailyTimer">00:00:00</span>
+                    </div>
+                    <button id="startMiningBtn" onclick="manualClaimAndStart()" style="display:none; background:#27ae60; margin-top:10px; animation: pulse 1.5s infinite;">
+                        ⚡ جمع الأرباح وتشغيل العداد
+                    </button>
                 </div>
+
                 <div class="quick-actions">
                     <button onclick="showMsg('هدية', 'قريباً..', '🎁')" class="action-icon"><i class="fas fa-gift"></i> هدية</button>
                     <button onclick="showMsg('الحظ', 'قريباً..', '🎡')" class="action-icon"><i class="fas fa-dharmachakra"></i> الحظ</button>
@@ -96,28 +124,6 @@
                 <div id="dynamicPlansArea">
                     <p style="text-align:center; padding:20px;">جاري تحميل الباقات...</p>
                 </div>
-            </div>
-        </section>
-
-        <section id="soon" class="tab-content">
-            <div style="padding:20px;">
-                <h2 style="color:var(--primary); margin-bottom:15px;">قريباً في Keey</h2>
-                
-                <div class="plan-box" style="margin-bottom:15px;">
-                    <div class="plan-header"><i class="fas fa-chart-line"></i><h3>بوت التحليل الذكي</h3></div>
-                    <p style="color:#666; font-size:0.9rem;">نظام ذكي يعطيك توصيات استثمارية دقيقة بناءً على تحركات السوق.</p>
-                </div>
-
-                <div class="plan-box" style="margin-bottom:15px;">
-                    <div class="plan-header"><i class="fas fa-graduation-cap"></i><h3>أكاديمية التعليم</h3></div>
-                    <p style="color:#666; font-size:0.9rem;">دروس مجانية لتعليم التداول والاستثمار الرقمي من الصفر.</p>
-                </div>
-
-                <div class="plan-box" style="margin-bottom:15px;">
-                    <div class="plan-header"><i class="fas fa-exchange-alt"></i><h3>التحويل الداخلي</h3></div>
-                    <p style="color:#666; font-size:0.9rem;">إمكانية إرسال الرصيد بين الأصدقاء داخل التطبيق بدون عمولة.</p>
-                </div>
-
             </div>
         </section>
 
@@ -133,7 +139,9 @@
                     </div>
                 </div>
                 <h3 style="margin-top:20px;">سجل العمليات</h3>
-                <ul id="transList" style="list-style:none; padding:0;"></ul>
+                <ul id="transList" style="list-style:none; padding:0;">
+                    <li style="color:#777; text-align:center;">لا توجد عمليات حديثة</li>
+                </ul>
             </div>
         </section>
 
@@ -173,8 +181,9 @@
                 <div class="menu-list">
                     <div class="menu-item" onclick="logout()"><i class="fas fa-sign-out-alt" style="color:red"></i> خروج</div>
                 </div>
-                <h3>سجل الاشتراكات</h3>
-                <ul id="myPlansList" style="padding:0; list-style:none;"></ul>
+                <h3>سجل الاشتراكات النشطة</h3>
+                <ul id="myPlansList" style="padding:0; list-style:none;">
+                    </ul>
             </div>
         </section>
 
@@ -185,8 +194,11 @@
         <div class="nav-item" onclick="switchTab('team')"><i class="fas fa-users"></i> <span>الفريق</span></div>
         <div class="nav-item active center-btn" onclick="switchTab('home')"><div class="floating-home"><i class="fas fa-home"></i></div></div>
         <div class="nav-item" onclick="switchTab('store')"><i class="fas fa-shopping-bag"></i> <span>المتجر</span></div>
-        <div class="nav-item" onclick="switchTab('soon')"><i class="fas fa-rocket"></i> <span>قريباً</span></div>
-    </nav>
+        </nav>
+
+    <style>
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    </style>
 
     <script src="script.js" type="module"></script>
 </body>
