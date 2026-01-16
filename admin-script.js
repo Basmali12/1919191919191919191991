@@ -1,12 +1,10 @@
 /* =========================================
-   Admin Panel - Connected to Real Database
+   Admin Panel - Glass Style Logic
    ========================================= */
 
-// 1. استيراد دوال فايربيس
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 2. إعدادات المشروع
 const firebaseConfig = {
     apiKey: "AIzaSyAFzCkQI0jedUl8W9xO1Bwzdg2Rhnxsh-s",
     authDomain: "kj1i-c1d4d.firebaseapp.com",
@@ -17,11 +15,9 @@ const firebaseConfig = {
     measurementId: "G-J9QPH9Z1K1"
 };
 
-// تهيئة الاتصال
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// بيانات دخول الأدمن
 const ADMIN_AUTH = {
     email: "saraameer1022@gmail.com",
     pass: "1998b"
@@ -37,10 +33,11 @@ window.adminLogin = function() {
 
     if (email === ADMIN_AUTH.email && pass === ADMIN_AUTH.pass) {
         document.getElementById('adminLoginModal').style.display = 'none';
-        document.getElementById('adminPanel').style.display = 'flex';
+        document.getElementById('adminPanel').style.display = 'block';
+        document.getElementById('bottomNav').style.display = 'flex'; // إظهار الشريط السفلي
         renderPlans(); 
         renderNotes();
-        listenToWithdrawals(); // بدء الاستماع للطلبات
+        listenToWithdrawals(); 
     } else {
         document.getElementById('loginError').style.display = 'block';
     }
@@ -50,14 +47,20 @@ window.adminLogout = function() {
     location.reload();
 }
 
-window.showTab = function(tabId) {
+// دالة التبديل المعدلة للشريط السفلي
+window.showTab = function(tabId, el) {
+    // إخفاء جميع الأقسام
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
-    document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+    // إزالة التفعيل من جميع الأزرار
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     
+    // تفعيل القسم المطلوب
     document.getElementById(tabId).classList.add('active');
+    // تفعيل الزر المضغوط
+    if(el) el.classList.add('active');
 }
 
-/* === 1. إدارة العدادات (Database Plans) === */
+/* === 1. إدارة العدادات === */
 window.toggleAddForm = function() {
     const form = document.getElementById('addPlanForm');
     form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -83,7 +86,7 @@ window.addNewPlan = async function() {
     try {
         const planId = "PLAN_" + Date.now();
         await setDoc(doc(db, "plans", planId), newPlan);
-        alert('تم نشر العداد في التطبيق بنجاح ✅');
+        alert('تم نشر العداد ✅');
         renderPlans();
         toggleAddForm();
         
@@ -91,13 +94,13 @@ window.addNewPlan = async function() {
         document.getElementById('pPrice').value = '';
     } catch (e) {
         console.error("Error adding plan: ", e);
-        alert("حدث خطأ أثناء الاتصال بقاعدة البيانات ❌");
+        alert("حدث خطأ");
     }
 }
 
 window.renderPlans = async function() {
     const list = document.getElementById('adminPlansList');
-    list.innerHTML = '<p style="text-align:center">جاري جلب البيانات من السيرفر...</p>';
+    list.innerHTML = '<p style="text-align:center">جاري جلب البيانات...</p>';
     
     try {
         const q = query(collection(db, "plans")); 
@@ -106,48 +109,46 @@ window.renderPlans = async function() {
         list.innerHTML = '';
         
         if (querySnapshot.empty) {
-            list.innerHTML = '<p>لا توجد عدادات حالياً.</p>';
+            list.innerHTML = '<p style="text-align:center; color:white;">لا توجد عدادات.</p>';
             return;
         }
 
         querySnapshot.forEach((docSnap) => {
             const plan = docSnap.data();
             const planId = docSnap.id;
-            
             let isFull = plan.sold >= plan.stock;
-            let statusHtml = isFull ? '<span style="color:red; font-weight:bold;">(مكتمل)</span>' : '';
             
             list.innerHTML += `
-                <div class="plan-item" style="${isFull ? 'opacity:0.6; background:#f0f0f0;' : ''}">
+                <div class="plan-item">
                     <div>
-                        <strong>${plan.name}</strong> ${statusHtml} <br>
-                        <small>السعر: ${plan.price.toLocaleString()} | الربح: ${plan.profit.toLocaleString()} | المشتركين: ${plan.sold}/${plan.stock}</small>
+                        <strong style="color:var(--primary-pink);">${plan.name}</strong> <br>
+                        <small>سعر: ${plan.price} | ربح: ${plan.profit} | <span style="color:#2980b9">${plan.sold}/${plan.stock}</span></small>
                     </div>
-                    <button onclick="deletePlan('${planId}')" class="btn-del">حذف</button>
+                    <button onclick="deletePlan('${planId}')" class="btn-glass" style="background:#ff758c; color:white;">حذف</button>
                 </div>
             `;
         });
     } catch (e) {
         console.error(e);
-        list.innerHTML = '<p style="color:red">فشل تحميل العدادات.</p>';
+        list.innerHTML = '<p>فشل التحميل.</p>';
     }
 }
 
 window.deletePlan = async function(planId) {
-    if(confirm('هل أنت متأكد؟ سيتم حذف هذا العداد من تطبيق المستخدمين أيضاً.')) {
+    if(confirm('هل أنت متأكد من الحذف؟')) {
         try {
             await deleteDoc(doc(db, "plans", planId));
             renderPlans(); 
         } catch (e) {
-            alert("حدث خطأ أثناء الحذف");
+            alert("حدث خطأ");
         }
     }
 }
 
-/* === 2. إدارة المستثمرين (Users Database) === */
+/* === 2. إدارة المستثمرين === */
 window.searchUser = async function() {
     const id = document.getElementById('searchId').value.trim();
-    if(!id) return alert("يرجى إدخال ID");
+    if(!id) return alert("أدخل ID");
 
     try {
         const docRef = doc(db, "users", id);
@@ -161,18 +162,13 @@ window.searchUser = async function() {
             document.getElementById('uName').innerText = currentUser.name;
             document.getElementById('uID').innerText = currentUser.id;
             document.getElementById('uBalance').value = currentUser.balance;
-            
-            const status = currentUser.status || 'active';
-            const badge = document.getElementById('uStatus');
-            badge.innerText = status === 'active' ? 'نشط' : 'محظور';
-            badge.style.color = status === 'active' ? 'green' : 'red';
         } else {
-            alert('المستخدم غير موجود في قاعدة البيانات!');
+            alert('المستخدم غير موجود');
             document.getElementById('userResult').style.display = 'none';
         }
     } catch (e) {
         console.error(e);
-        alert("خطأ في الاتصال");
+        alert("خطأ");
     }
 }
 
@@ -191,37 +187,32 @@ window.saveUserChanges = async function() {
             await updateDoc(userRef, {
                 balance: newBalance
             });
-            alert(`تم تحديث رصيد ${currentUser.name} بنجاح ✅`);
+            alert(`تم الحفظ ✅`);
         } catch (e) {
-            console.error(e);
-            alert("فشل الحفظ ❌");
+            alert("فشل الحفظ");
         }
     }
 }
 
 window.banUser = async function() {
     if(currentUser && currentUser.dbId) {
-        if(confirm("هل أنت متأكد من حظر هذا المستخدم؟")) {
+        if(confirm("حظر هذا المستخدم؟")) {
             try {
                 const userRef = doc(db, "users", currentUser.dbId);
-                await updateDoc(userRef, {
-                    status: 'banned'
-                });
-                alert('تم حظر المستخدم');
-                document.getElementById('uStatus').innerText = 'محظور';
-                document.getElementById('uStatus').style.color = 'red';
+                await updateDoc(userRef, { status: 'banned' });
+                alert('تم الحظر');
             } catch(e) {
-                alert("فشل العملية");
+                alert("فشل");
             }
         }
     }
 }
 
-/* === 3. سجل الملاحظات === */
+/* === 3. الملاحظات === */
 window.addNote = function() {
     const name = document.getElementById('noteName').value;
     const date = document.getElementById('noteDate').value;
-    if(!name || !date) return;
+    if(!name) return;
 
     notes.push({name, date});
     localStorage.setItem('adminNotes', JSON.stringify(notes));
@@ -248,7 +239,7 @@ window.deleteNote = function(i) {
     renderNotes();
 }
 
-/* === 4. إدارة الطلبات (الجديد) === */
+/* === 4. الطلبات === */
 function listenToWithdrawals() {
     const list = document.getElementById('withdrawalsList');
     const q = query(collection(db, "withdrawals"), orderBy("date", "desc"));
@@ -256,43 +247,32 @@ function listenToWithdrawals() {
     onSnapshot(q, (snapshot) => {
         list.innerHTML = '';
         if(snapshot.empty) {
-            list.innerHTML = '<p style="text-align:center; width:100%; color:#888;">لا توجد طلبات جديدة.</p>';
+            list.innerHTML = '<p style="text-align:center; width:100%; color:white;">لا توجد طلبات جديدة.</p>';
             return;
         }
 
         snapshot.forEach((doc) => {
             const req = doc.data();
             const dateObj = new Date(req.date);
-            const dateStr = dateObj.toLocaleDateString('ar-EG') + ' ' + dateObj.toLocaleTimeString('ar-EG');
+            const dateStr = dateObj.toLocaleTimeString('ar-EG');
             
-            // تحديد اللون والأيقونة حسب الطريقة
             const icon = req.method === 'zaincash' ? '📱' : '💳';
-            const methodText = req.method === 'zaincash' ? 'زين كاش' : 'ماستر كارد';
 
             list.innerHTML += `
             <div class="req-card">
                 <div class="req-header">
-                    <h4>${icon} ${req.userName}</h4>
-                    <span class="req-time">${dateStr}</span>
+                    <span>${icon} ${req.userName}</span>
+                    <span style="font-size:0.8rem; opacity:0.9">${dateStr}</span>
                 </div>
                 <div class="req-body">
                     <div class="req-row">
-                        <span class="req-label">المبلغ المطلوب</span>
+                        <span style="color:#888;">المبلغ</span>
                         <span class="req-val amount">${Number(req.amount).toLocaleString()} IQD</span>
                     </div>
-                    <div class="req-row">
-                        <span class="req-label">رقم الحساب/الهاتف</span>
+                    <div class="req-account-box" onclick="copyText('${req.accountNumber}')">
+                        ${req.accountNumber} <i class="fas fa-copy"></i>
                     </div>
-                    <div class="req-account-box" onclick="copyText('${req.accountNumber}')" title="اضغط للنسخ">
-                        ${req.accountNumber} <i class="fas fa-copy" style="font-size:0.8rem; opacity:0.5;"></i>
-                    </div>
-                    <div class="req-row">
-                        <span class="req-label">ID المستخدم</span>
-                        <span class="req-val">${req.userId}</span>
-                    </div>
-                </div>
-                <div class="req-footer">
-                     <button class="btn-done" onclick="deleteReq('${doc.id}')"><i class="fas fa-check"></i> تم التحويل والأرشفة</button>
+                    <button class="btn-done" onclick="deleteReq('${doc.id}')">✔️ تم التحويل</button>
                 </div>
             </div>
             `;
@@ -302,17 +282,15 @@ function listenToWithdrawals() {
 
 window.copyText = function(text) {
     navigator.clipboard.writeText(text);
-    alert('تم نسخ الرقم: ' + text);
+    alert('تم النسخ: ' + text);
 }
 
 window.deleteReq = async function(docId) {
-    if(confirm('هل أتممت التحويل وتريد إزالة هذا الطلب من القائمة؟')) {
+    if(confirm('هل تريد أرشفة هذا الطلب؟')) {
         try {
             await deleteDoc(doc(db, "withdrawals", docId));
-            alert('تمت الأرشفة بنجاح');
         } catch(e) {
             console.error(e);
-            alert('حدث خطأ');
         }
     }
 }
