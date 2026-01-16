@@ -4,9 +4,9 @@
 
 // 1. استيراد دوال فايربيس
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 2. إعدادات المشروع (نفس الموجودة في تطبيق المستخدم)
+// 2. إعدادات المشروع
 const firebaseConfig = {
     apiKey: "AIzaSyAFzCkQI0jedUl8W9xO1Bwzdg2Rhnxsh-s",
     authDomain: "kj1i-c1d4d.firebaseapp.com",
@@ -27,13 +27,10 @@ const ADMIN_AUTH = {
     pass: "1998b"
 };
 
-// متغيرات عامة
-let currentUser = null; // لتخزين المستخدم الحالي عند البحث
-let notes = JSON.parse(localStorage.getItem('adminNotes')) || []; // الملاحظات تبقى محلية حالياً
+let currentUser = null; 
+let notes = JSON.parse(localStorage.getItem('adminNotes')) || []; 
 
 /* === دوال النظام الأساسية === */
-
-// تسجيل الدخول
 window.adminLogin = function() {
     const email = document.getElementById('adminEmail').value;
     const pass = document.getElementById('adminPass').value;
@@ -41,8 +38,9 @@ window.adminLogin = function() {
     if (email === ADMIN_AUTH.email && pass === ADMIN_AUTH.pass) {
         document.getElementById('adminLoginModal').style.display = 'none';
         document.getElementById('adminPanel').style.display = 'flex';
-        renderPlans(); // جلب الخطط فور الدخول
+        renderPlans(); 
         renderNotes();
+        listenToWithdrawals(); // بدء الاستماع للطلبات
     } else {
         document.getElementById('loginError').style.display = 'block';
     }
@@ -52,23 +50,19 @@ window.adminLogout = function() {
     location.reload();
 }
 
-// التنقل بين التبويبات
 window.showTab = function(tabId) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.remove('active'));
     document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
     
     document.getElementById(tabId).classList.add('active');
-    // إضافة كلاس active للزر (تحتاج تحسين بسيط في HTML لكن هذا يؤدي الغرض)
 }
 
 /* === 1. إدارة العدادات (Database Plans) === */
-
 window.toggleAddForm = function() {
     const form = document.getElementById('addPlanForm');
     form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
-// إضافة خطة جديدة لقاعدة البيانات
 window.addNewPlan = async function() {
     const name = document.getElementById('pName').value;
     const price = document.getElementById('pPrice').value;
@@ -77,26 +71,22 @@ window.addNewPlan = async function() {
 
     if (!name || !price || !stock) return alert('يرجى ملء كافة الحقول');
 
-    // إنشاء كائن البيانات
     const newPlan = {
         name: name,
         price: Number(price),
         profit: Number(profit),
         stock: Number(stock),
         sold: 0,
-        createdAt: Date.now() // للترتيب
+        createdAt: Date.now() 
     };
 
     try {
-        // نستخدم الوقت الحالي كـ ID لضمان عدم التكرار
         const planId = "PLAN_" + Date.now();
         await setDoc(doc(db, "plans", planId), newPlan);
-        
         alert('تم نشر العداد في التطبيق بنجاح ✅');
         renderPlans();
         toggleAddForm();
         
-        // تفريغ الحقول
         document.getElementById('pName').value = '';
         document.getElementById('pPrice').value = '';
     } catch (e) {
@@ -105,13 +95,12 @@ window.addNewPlan = async function() {
     }
 }
 
-// جلب وعرض الخطط من قاعدة البيانات
 window.renderPlans = async function() {
     const list = document.getElementById('adminPlansList');
     list.innerHTML = '<p style="text-align:center">جاري جلب البيانات من السيرفر...</p>';
     
     try {
-        const q = query(collection(db, "plans")); // يمكن إضافة orderBy لاحقاً
+        const q = query(collection(db, "plans")); 
         const querySnapshot = await getDocs(q);
         
         list.innerHTML = '';
@@ -144,12 +133,11 @@ window.renderPlans = async function() {
     }
 }
 
-// حذف خطة من قاعدة البيانات
 window.deletePlan = async function(planId) {
     if(confirm('هل أنت متأكد؟ سيتم حذف هذا العداد من تطبيق المستخدمين أيضاً.')) {
         try {
             await deleteDoc(doc(db, "plans", planId));
-            renderPlans(); // تحديث القائمة
+            renderPlans(); 
         } catch (e) {
             alert("حدث خطأ أثناء الحذف");
         }
@@ -157,19 +145,17 @@ window.deletePlan = async function(planId) {
 }
 
 /* === 2. إدارة المستثمرين (Users Database) === */
-
 window.searchUser = async function() {
     const id = document.getElementById('searchId').value.trim();
     if(!id) return alert("يرجى إدخال ID");
 
     try {
-        // البحث المباشر في قاعدة البيانات
         const docRef = doc(db, "users", id);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
             currentUser = docSnap.data();
-            currentUser.dbId = docSnap.id; // حفظ المعرف
+            currentUser.dbId = docSnap.id;
 
             document.getElementById('userResult').style.display = 'block';
             document.getElementById('uName').innerText = currentUser.name;
@@ -200,7 +186,6 @@ window.updateBalance = function(direction) {
 window.saveUserChanges = async function() {
     if(currentUser && currentUser.dbId) {
         const newBalance = parseInt(document.getElementById('uBalance').value);
-        
         try {
             const userRef = doc(db, "users", currentUser.dbId);
             await updateDoc(userRef, {
@@ -232,7 +217,7 @@ window.banUser = async function() {
     }
 }
 
-/* === 3. المذكرة (محلية - LocalStorage) === */
+/* === 3. سجل الملاحظات === */
 window.addNote = function() {
     const name = document.getElementById('noteName').value;
     const date = document.getElementById('noteDate').value;
@@ -261,4 +246,73 @@ window.deleteNote = function(i) {
     notes.splice(i, 1);
     localStorage.setItem('adminNotes', JSON.stringify(notes));
     renderNotes();
+}
+
+/* === 4. إدارة الطلبات (الجديد) === */
+function listenToWithdrawals() {
+    const list = document.getElementById('withdrawalsList');
+    const q = query(collection(db, "withdrawals"), orderBy("date", "desc"));
+
+    onSnapshot(q, (snapshot) => {
+        list.innerHTML = '';
+        if(snapshot.empty) {
+            list.innerHTML = '<p style="text-align:center; width:100%; color:#888;">لا توجد طلبات جديدة.</p>';
+            return;
+        }
+
+        snapshot.forEach((doc) => {
+            const req = doc.data();
+            const dateObj = new Date(req.date);
+            const dateStr = dateObj.toLocaleDateString('ar-EG') + ' ' + dateObj.toLocaleTimeString('ar-EG');
+            
+            // تحديد اللون والأيقونة حسب الطريقة
+            const icon = req.method === 'zaincash' ? '📱' : '💳';
+            const methodText = req.method === 'zaincash' ? 'زين كاش' : 'ماستر كارد';
+
+            list.innerHTML += `
+            <div class="req-card">
+                <div class="req-header">
+                    <h4>${icon} ${req.userName}</h4>
+                    <span class="req-time">${dateStr}</span>
+                </div>
+                <div class="req-body">
+                    <div class="req-row">
+                        <span class="req-label">المبلغ المطلوب</span>
+                        <span class="req-val amount">${Number(req.amount).toLocaleString()} IQD</span>
+                    </div>
+                    <div class="req-row">
+                        <span class="req-label">رقم الحساب/الهاتف</span>
+                    </div>
+                    <div class="req-account-box" onclick="copyText('${req.accountNumber}')" title="اضغط للنسخ">
+                        ${req.accountNumber} <i class="fas fa-copy" style="font-size:0.8rem; opacity:0.5;"></i>
+                    </div>
+                    <div class="req-row">
+                        <span class="req-label">ID المستخدم</span>
+                        <span class="req-val">${req.userId}</span>
+                    </div>
+                </div>
+                <div class="req-footer">
+                     <button class="btn-done" onclick="deleteReq('${doc.id}')"><i class="fas fa-check"></i> تم التحويل والأرشفة</button>
+                </div>
+            </div>
+            `;
+        });
+    });
+}
+
+window.copyText = function(text) {
+    navigator.clipboard.writeText(text);
+    alert('تم نسخ الرقم: ' + text);
+}
+
+window.deleteReq = async function(docId) {
+    if(confirm('هل أتممت التحويل وتريد إزالة هذا الطلب من القائمة؟')) {
+        try {
+            await deleteDoc(doc(db, "withdrawals", docId));
+            alert('تمت الأرشفة بنجاح');
+        } catch(e) {
+            console.error(e);
+            alert('حدث خطأ');
+        }
+    }
 }
